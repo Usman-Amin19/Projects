@@ -2,9 +2,9 @@ from PyPDF2 import PdfReader
 import os
 import shutil
 
-keywordsPath = input("Please Enter the complete path of keywords pdf: ")
+keywordsPath = "Python\\Mini-ATS\\TestData\\Keywords.pdf"
 
-resumesPath = input("Please Enter the complete path of the resumes folder: ")
+resumesPath = "Python\\Mini-ATS\\TestData\\CVs"
 
 reader = PdfReader(keywordsPath)
 keywords = []
