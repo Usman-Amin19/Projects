@@ -14,7 +14,6 @@ for page in reader.pages:
     keywords.extend(text.split())
 
 keywords = [word.lower() for word in keywords]
-print("Selected Resumes:- ")
 resumes = [resume for resume in os.listdir(resumesPath) if resume.endswith(".pdf")]
 for resume in resumes:
     resumePath = os.path.join(resumesPath, resume)
