@@ -6,10 +6,9 @@ CLAN_TAG = '#29VCPLRRY'
 # URL encode the clan tag if needed
 encoded_clan_tag = CLAN_TAG.replace('#', '%23')
 
-# API Endpoint
+# Access Clan Members
 url = f"https://api.clashofclans.com/v1/clans/{encoded_clan_tag}/members"
 
-# HTTP headers
 headers = {
     "Authorization": f"Bearer {API_TOKEN}",
     "Accept": "application/json"
@@ -28,7 +27,7 @@ else:
     print(f"Error: {response.status_code}")
     print(response.text)
 
-
+# Access Capital Raids Data
 url = f"https://api.clashofclans.com/v1/clans/{encoded_clan_tag}/capitalraidseasons"
 
 # Make the request
@@ -38,7 +37,7 @@ raids_done = []
 
 if response.status_code == 200:
     data = response.json()
-    latest_raid = data['items'][0]
+    latest_raid = data['items'][0] # 0 for latest raid
     raids_done = latest_raid['members']
 else:
     print(f"Error: {response.status_code}")
@@ -54,6 +53,6 @@ for member in raids_done:
 
 print('\n', end='')
 print("Raids not done by:- ")
-for member in current_clan_members:
-    if member not in [name for name in (member['name'] for member in raids_done)]:
-        print(member)
+for mem in current_clan_members:
+    if mem not in [member['name'] for member in raids_done]:
+        print(mem)
