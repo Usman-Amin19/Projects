@@ -1,6 +1,6 @@
 import requests
 
-API_TOKEN = 'YOUR_API_FROM_COC_DEVELOPERS_PORTAL'
+API_TOKEN = 'YOUR_API_KEY_FROM_COC_DEVELOPERS_PORTAL'
 CLAN_TAG = '#29VCPLRRY'
 
 # URL encode the clan tag if needed
@@ -33,17 +33,18 @@ url = f"https://api.clashofclans.com/v1/clans/{encoded_clan_tag}/capitalraidseas
 # Make the request
 response = requests.get(url, headers=headers)
 
-raids_done = []
+raids = []
 
 if response.status_code == 200:
     data = response.json()
-    latest_raid = data['items'][0] # 0 for latest raid
-    raids_done = latest_raid['members']
+    raids = data['items'][0]
 else:
     print(f"Error: {response.status_code}")
     print(response.text)
 
-print(f"Total raids done:", len(raids_done))
+raids_done = raids['members']
+
+print("Total number of members who participated in raid weekend:", len(raids_done))
 print('\n', end='')
 
 print("Raids not completed by:- ")
