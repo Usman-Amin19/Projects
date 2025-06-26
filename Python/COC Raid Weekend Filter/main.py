@@ -1,6 +1,6 @@
 import requests
 
-API_TOKEN = 'YOUR_API_KEY_FROM_COC_DEVELOPERS_PORTAL'
+API_TOKEN = 'YOUR_API_FROM_COC_DEVELOPERS_PORTAL'
 CLAN_TAG = '#29VCPLRRY'
 
 # URL encode the clan tag if needed
