@@ -1,0 +1,108 @@
+{% extends 'mainApp/base.html' %}
+{% block title %}Groups - HisaabKaro{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<!-- Charts Button -->
+<button class="charts-button" onclick="openChartModal('groups')">
+    <i class="fas fa-chart-pie"></i>
+    <span>Show Graphs</span>
+</button>
+
+<div class="container mt-4">
+    <div class="header">
+        <h1>Groups</h1>
+        <p>Manage your shared expenses</p>
+        
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-center gap-3 mb-4">
+            <a href="{% url 'mainApp:create_group' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-plus-circle me-2"></i>Create Group
+            </a>
+            <a href="{% url 'mainApp:join_group_form' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-users me-2"></i>Join Group
+            </a>
+        </div>
+    </div>
+
+    {% if group_data %}
+        <div id="groupContainer">
+            {% for item in group_data %}
+            <div class="group-card cursor-pointer" onclick="window.location.href='{% url 'mainApp:group_detail' item.group.id %}'">
+                <div class="group-name">{{ item.group.name }}</div>
+                <div class="group-description">{{ item.group.description|default:"No description" }}</div>
+                
+                <!-- Balance Information -->
+                <div class="group-balance mb-2">
+                    {% if item.you_owe %}
+                        <span class="badge bg-danger">You owe ${{ item.balance|floatformat:2|cut:'-' }}</span>
+                    {% elif item.you_are_owed %}
+                        <span class="badge bg-success">You are owed ${{ item.balance|floatformat:2 }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">All settled up</span>
+                    {% endif %}
+                </div>
+                
+                <div class="group-stats">
+                    <span>{{ item.group.members.count }} member{{ item.group.members.count|pluralize }}</span>
+                    <span>{{ item.group.expenses.count }} expense{{ item.group.expenses.count|pluralize }}</span>
+                    <span>Created: {{ item.group.created_at|date:"M d, Y" }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No groups yet</h3>
+            <p>Create or join your first group to start tracking shared expenses</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Chart Modal (reusing from home.html) -->
+<div class="chart-modal" id="chartModal">
+    <div class="chart-modal-content">
+        <div class="chart-modal-header">
+            <h5>Group Spending Analysis</h5>
+            <button class="chart-close" onclick="closeChartModal()">&times;</button>
+        </div>
+        <div class="chart-modal-body">
+            <div class="chart-options">
+                <div class="chart-option" data-type="day">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Single Day</span>
+                </div>
+                <div class="chart-option" data-type="month">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Single Month</span>
+                </div>
+                <div class="chart-option" data-type="range">
+                    <i class="fas fa-calendar-week"></i>
+                    <span>Date Range</span>
+                </div>
+            </div>
+            
+            <div class="date-inputs" id="dateInputs">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="startDate">Start Date:</label>
+                        <input type="date" class="form-control" id="startDate">
+                    </div>
+                    <div class="col-md-6" id="endDateCol">
+                        <label for="endDate">End Date:</label>
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                </div>
+                <button class="chart-generate-btn" onclick="generateChart()">Generate Chart</button>
+            </div>
+            
+            <div class="chart-container" id="chartContainer">
+                <canvas id="expenseChart" class="chart-canvas"></canvas>
+                <div class="chart-stats" id="chartStats">
+                    <!-- Stats will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends 'mainApp/base.html' %}
+{% block title %}Add Personal Expense - HisaabKaro{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>Add Personal Expense</h1>
+        <p>Track your personal spending</p>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="title" class="form-label">Expense Title</label>
+                    <input type="text" class="form-control" id="title" name="title" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Amount ($)</label>
+                    <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description (Optional)</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="category" class="form-label">Category</label>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <select class="form-control" id="category" name="category" onchange="toggleNewCategory()">
+                                <option value="">Select a category</option>
+                                {% for category in categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                                <option value="new">+ Create New Category</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4" id="newCategoryDiv" style="display: none;">
+                            <input type="text" class="form-control" id="new_category_name" name="new_category_name" placeholder="New category name">
+                        </div>
+                    </div>
+                    <small class="form-text text-muted">You can select an existing category or create a new one</small>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Expense
+                    </button>
+                    <a href="{% url 'mainApp:personal_expenses' %}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleNewCategory() {
+            const categorySelect = document.getElementById('category');
+            const newCategoryDiv = document.getElementById('newCategoryDiv');
+            const newCategoryInput = document.getElementById('new_category_name');
+            
+            if (categorySelect.value === 'new') {
+                newCategoryDiv.style.display = 'block';
+                newCategoryInput.required = true;
+                categorySelect.value = ''; // Clear the select so new category will be used
+            } else {
+                newCategoryDiv.style.display = 'none';
+                newCategoryInput.required = false;
+                newCategoryInput.value = '';
+            }
+        }
+    </script>
+{% endblock %}

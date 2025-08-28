@@ -1,0 +1,37 @@
+{% extends 'mainApp/base.html' %}
+{% block title %}Create Group - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="header">
+        <h1>Create New Group</h1>
+        <p>Start a new group to track shared expenses</p>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="name" class="form-label">Group Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description (Optional)</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Group
+                    </button>
+                    <a href="{% url 'mainApp:groups' %}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

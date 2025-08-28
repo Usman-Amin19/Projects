@@ -1,0 +1,62 @@
+{% extends 'mainApp/base.html' %}
+
+{% block title %}Terms of Use - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-body p-5">
+                    <div class="text-center mb-5">
+                        <h1 class="h2 mb-2">Terms of Use</h1>
+                        <p class="text-muted">Last updated: January 2025</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">1. Acceptance of Terms</h3>
+                        <p>By accessing and using HisaabKaro, you accept and agree to be bound by the terms and provision of this agreement.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">2. Description of Service</h3>
+                        <p>HisaabKaro is a personal expense tracking and group expense management application that helps users track their finances and split expenses with others.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">3. User Responsibilities</h3>
+                        <ul>
+                            <li>Provide accurate and truthful information</li>
+                            <li>Maintain the security of your account credentials</li>
+                            <li>Use the service in compliance with applicable laws</li>
+                            <li>Respect other users' privacy and data</li>
+                            <li>Not attempt to compromise the security of the platform</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">4. Privacy and Data Protection</h3>
+                        <p>Your privacy is important to us. Please review our Privacy Policy to understand how we collect, use, and protect your information.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">5. Limitation of Liability</h3>
+                        <p>HisaabKaro is provided "as is" without warranty of any kind. We shall not be liable for any damages arising from the use of this service.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">6. Changes to Terms</h3>
+                        <p>We reserve the right to modify these terms at any time. Users will be notified of significant changes.</p>
+                    </div>
+
+                    <div class="text-center mt-5">
+                        <a href="{% url 'mainApp:home' %}" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

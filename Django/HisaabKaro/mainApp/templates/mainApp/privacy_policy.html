@@ -1,0 +1,79 @@
+{% extends 'mainApp/base.html' %}
+
+{% block title %}Privacy Policy - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-body p-5">
+                    <div class="text-center mb-5">
+                        <h1 class="h2 mb-2">Privacy Policy</h1>
+                        <p class="text-muted">Last updated: January 2025</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">1. Information We Collect</h3>
+                        <p>We collect information you provide directly to us, such as:</p>
+                        <ul>
+                            <li>Account information (email, username)</li>
+                            <li>Expense data and transaction details</li>
+                            <li>Group information and member details</li>
+                            <li>Usage data and preferences</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">2. How We Use Your Information</h3>
+                        <p>We use the information we collect to:</p>
+                        <ul>
+                            <li>Provide and maintain our service</li>
+                            <li>Process transactions and calculations</li>
+                            <li>Send notifications and updates</li>
+                            <li>Improve our service and user experience</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">3. Information Sharing</h3>
+                        <p>We do not sell, trade, or rent your personal information to third parties. We may share information:</p>
+                        <ul>
+                            <li>With group members in shared expense groups</li>
+                            <li>When required by law or legal process</li>
+                            <li>To protect our rights and safety</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">4. Data Security</h3>
+                        <p>We implement appropriate security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">5. Your Rights</h3>
+                        <p>You have the right to:</p>
+                        <ul>
+                            <li>Access your personal information</li>
+                            <li>Correct inaccurate data</li>
+                            <li>Delete your account and data</li>
+                            <li>Export your data</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="h5 mb-3">6. Contact Us</h3>
+                        <p>If you have any questions about this Privacy Policy, please contact us through the application.</p>
+                    </div>
+
+                    <div class="text-center mt-5">
+                        <a href="{% url 'mainApp:home' %}" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends 'mainApp/base.html' %}
+{% load static %}
+
+{% block title %}Add Group Expense - Step 1{% endblock %}
+
+{% block extra_css %}
+<style>
+    .step-indicator {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .step {
+        text-align: center;
+        color: white;
+        flex: 1;
+        position: relative;
+    }
+
+    .step.active {
+        font-weight: bold;
+    }
+
+    .step.active::after {
+        content: '';
+        position: absolute;
+        bottom: -5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 20px;
+        height: 3px;
+        background-color: #ffd700;
+        border-radius: 2px;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        margin: 1rem 0;
+        border: 1px solid #e0e0e0;
+    }
+
+    .btn-gradient {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-gradient:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    .input-group-text {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .progress-info {
+        background: #f8f9fa;
+        border-left: 4px solid #007bff;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0 8px 8px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="text-center mb-4">
+                <h2 class="text-primary mb-3">
+                    <i class="fas fa-plus-circle"></i> {% if is_editing %}Edit{% else %}Add{% endif %} Group Expense
+                </h2>
+                <p class="text-muted">{% if is_editing %}Editing expense in{% else %}Adding expense to{% endif %} group: <strong>{{ group.name }}</strong></p>
+            </div>
+
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step active">
+                    <i class="fas fa-info-circle"></i><br>
+                    <small>Basic Details</small>
+                </div>
+                <div class="step">
+                    <i class="fas fa-users"></i><br>
+                    <small>Participants</small>
+                </div>
+                <div class="step">
+                    <i class="fas fa-wallet"></i><br>
+                    <small>Contributions</small>
+                </div>
+                <div class="step">
+                    <i class="fas fa-calculator"></i><br>
+                    <small>Split Details</small>
+                </div>
+            </div>
+
+            <form method="post" class="form-card">
+                {% csrf_token %}
+
+                <div class="text-center mb-4">
+                    <h4><i class="fas fa-info-circle text-primary"></i> Basic Expense Details</h4>
+                    <p class="text-muted">{% if is_editing %}Update{% else %}Enter{% endif %} the basic information for this expense</p>
+                </div>
+
+                <div class="mb-3">
+                    <label for="title" class="form-label">Expense Title *</label>
+                    <input type="text" class="form-control" id="title" name="title" 
+                           value="{{ expense_data.title|default:'' }}" required
+                           placeholder="e.g., Lunch at Restaurant">
+                </div>
+
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Total Amount *</label>
+                    <div class="input-group">
+                        <span class="input-group-text">PKR</span>
+                        <input type="number" class="form-control" id="amount" name="amount" 
+                               value="{{ expense_data.amount|default:'' }}" required step="0.01" min="0"
+                               placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"
+                              placeholder="Optional details about this expense">{{ expense_data.description|default:'' }}</textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label for="category" class="form-label">Category</label>
+                    <select class="form-select" id="category" name="category" onchange="toggleNewCategory()">
+                        <option value="">Select a category</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}" 
+                                {% if expense_data.category_id|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>
+                            {{ category.name }}
+                        </option>
+                        {% endfor %}
+                        <option value="new">+ Create New Category</option>
+                    </select>
+                    
+                    <div id="newCategoryDiv" style="display: none;" class="mt-2">
+                        <input type="text" class="form-control" id="new_category_name" name="new_category_name" 
+                               placeholder="Enter new category name">
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn btn-gradient">
+                        Next <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleNewCategory() {
+    const categorySelect = document.getElementById('category');
+    const newCategoryDiv = document.getElementById('newCategoryDiv');
+    const newCategoryInput = document.getElementById('new_category_name');
+    
+    if (categorySelect.value === 'new') {
+        newCategoryDiv.style.display = 'block';
+        newCategoryInput.required = true;
+        categorySelect.value = ''; // Clear the select so new category will be used
+    } else {
+        newCategoryDiv.style.display = 'none';
+        newCategoryInput.required = false;
+        newCategoryInput.value = '';
+    }
+}
+</script>
+{% endblock %}

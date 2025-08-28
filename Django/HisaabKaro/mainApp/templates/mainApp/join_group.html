@@ -1,0 +1,87 @@
+{% extends 'mainApp/base.html' %}
+{% block start %}
+    <div class="header text-center">
+        <h1>Join Group</h1>
+        <p>You've been invited to join a group!</p>
+    </div>
+
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="mb-4">
+                <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                <h3>{{ group.name }}</h3>
+                <p class="text-muted">{{ group.description|default:"No description available" }}</p>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h4>{{ group.members.count }}</h4>
+                        <small class="text-muted">Members</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h4>{{ group.expenses.count }}</h4>
+                        <small class="text-muted">Expenses</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h4>${{ total_spent|floatformat:2 }}</h4>
+                        <small class="text-muted">Total Spent</small>
+                    </div>
+                </div>
+            </div>
+            
+            {% if already_member %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    You are already a member of this group!
+                </div>
+                <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-primary">
+                    <i class="fas fa-arrow-right"></i> Go to Group
+                </a>
+            {% else %}
+                <form method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-user-plus"></i> Join Group
+                    </button>
+                </form>
+                <div class="mt-3">
+                    <a href="{% url 'mainApp:groups' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="d-flex">
+            <a href="{% url 'mainApp:home' %}" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </a>
+            <a href="{% url 'mainApp:groups' %}" class="nav-item active">
+                <i class="fas fa-users"></i>
+                <span>Groups</span>
+            </a>
+            <div class="nav-add">
+                <button class="add-btn" onclick="window.location.href='{% url 'mainApp:create_group' %}'" title="Create Group">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <a href="{% url 'mainApp:personal_expenses' %}" class="nav-item">
+                <i class="fas fa-user"></i>
+                <span>Personal</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-user-circle"></i>
+                <span>Profile</span>
+            </a>
+        </div>
+    </nav>
+{% endblock %}

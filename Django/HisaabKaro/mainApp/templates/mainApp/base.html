@@ -1,0 +1,313 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HisaabKaro{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
+    rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr"
+    crossorigin="anonymous">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css"
+    integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"/>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'mainApp/css/styles.css' %}">>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
+    crossorigin="anonymous"></script>
+</head>
+<body{% if is_dark_mode %} class="dark-mode"{% endif %}>
+    
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'mainApp:home' %}">
+                {% if is_dark_mode %}
+                <img src="{% static 'mainApp/images/dark_logo.png' %}" alt="HisaabKaro" class="img-fluid navbar-logo">
+                {% else %}
+                <img src="{% static 'mainApp/images/logo.png' %}" alt="HisaabKaro" class="img-fluid navbar-logo">
+                {% endif %}
+            </a>
+            
+            <div class="navbar-nav">
+                <!-- Theme toggle button (available for all users) -->
+                <button class="btn btn-outline-light btn-sm me-2 theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark Mode">
+                    <div class="theme-toggle">
+                        <div class="slider"></div>
+                        <i class="fas fa-sun"></i>
+                        <i class="fas fa-moon"></i>
+                    </div>
+                </button>
+                
+                {% if not user.is_authenticated %}
+                    <a class="nav-link" href="{% url 'mainApp:login' %}">
+                        <i class="fas fa-sign-in-alt me-1"></i>Login
+                    </a>
+                    <a class="nav-link" href="{% url 'mainApp:register' %}">
+                        <i class="fas fa-user-plus me-1"></i>Register
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Messages -->
+        {% if messages %}
+            <div class="container mt-3">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Page Content -->
+        {% block content %}
+        {% block start %}
+        {% endblock %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-light mt-5 text-center">
+        <p class="text-muted mb-2">&copy; 2025 HisaabKaro. All rights reserved.</p>
+        <div>
+            <a href="{% url 'mainApp:terms_of_use' %}" class="text-decoration-none me-3">Terms of Use</a>
+            <a href="{% url 'mainApp:privacy_policy' %}" class="text-decoration-none">Privacy Policy</a>
+        </div>
+    </footer>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="d-flex">
+            <a href="{% url 'mainApp:home' %}" class="nav-item {% if request.path == '/' %}active{% endif %}">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </a>
+            <a href="{% url 'mainApp:groups' %}" class="nav-item {% if request.path == '/groups/' %}active{% endif %}">
+                <i class="fas fa-users"></i>
+                <span>Groups</span>
+            </a>
+            
+            <!-- Dynamic + Button based on current page -->
+            {% if request.path == '/' %}
+                <!-- Home page: Show both options -->
+                <div class="nav-add">
+                    <div class="dropdown">
+                        <button class="add-btn" id="addMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Add Expense">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-up" aria-labelledby="addMenuButton">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'mainApp:add_personal_expense' %}">
+                                    <i class="fas fa-user me-2"></i>Add Personal Expense
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'mainApp:groups' %}">
+                                    <i class="fas fa-users me-2"></i>Add Group Expense
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            {% elif request.path == '/personal-expenses/' %}
+                <!-- Personal expenses page: Direct to add personal expense -->
+                <div class="nav-add">
+                    <button class="add-btn" onclick="window.location.href='{% url 'mainApp:add_personal_expense' %}'" title="Add Personal Expense">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            {% elif request.path == '/groups/' %}
+                <!-- Groups page: Show create/join options -->
+                <div class="nav-add">
+                    <div class="dropdown">
+                        <button class="add-btn" id="addMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Group Actions">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-up" aria-labelledby="addMenuButton">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'mainApp:create_group' %}">
+                                    <i class="fas fa-plus-circle me-2"></i>Create Group
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'mainApp:join_group_form' %}">
+                                    <i class="fas fa-users me-2"></i>Join Group
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            {% elif '/groups/' in request.path and 'join' not in request.path %}
+                <!-- Group detail page: Add group expense (if enough members) -->
+                <div class="nav-add">
+                    {% if group.members.count >= 2 %}
+                        <button class="add-btn" onclick="window.location.href='{% url 'mainApp:add_group_expense_step1' group.id %}'" title="Add Group Expense">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    {% else %}
+                        <button class="add-btn" disabled title="Need at least 2 members">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    {% endif %}
+                </div>
+            {% else %}
+                <!-- Default: Show both options -->
+                <div class="nav-add">
+                    <div class="dropdown">
+                        <button class="add-btn" id="addMenuButton" data-bs-toggle="dropdown" aria-expanded="false" title="Add Expense">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-up" aria-labelledby="addMenuButton">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'mainApp:add_personal_expense' %}">
+                                    <i class="fas fa-user me-2"></i>Add Personal Expense
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'mainApp:groups' %}">
+                                    <i class="fas fa-users me-2"></i>Add Group Expense
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            {% endif %}
+            
+            <a href="{% url 'mainApp:personal_expenses' %}" class="nav-item {% if request.path == '/personal-expenses/' %}active{% endif %}">
+                <i class="fas fa-user"></i>
+                <span>Personal</span>
+            </a>
+
+            <a href="{% url 'mainApp:profile' %}" class="nav-item {% if request.path == '/profile/' %}active{% endif %}">
+                <i class="fas fa-user-circle"></i>
+                <span>Profile</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Theme Toggle Scripts -->
+    <script>
+        // Initialize theme on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeToggle = document.querySelector('.theme-toggle');
+            const logo = document.querySelector('.navbar-logo');
+            
+            // Get initial dark mode state from Django template
+            const initialDarkMode = {{ is_dark_mode|yesno:"true,false" }};
+            
+            // Function to adjust main content padding based on navbar height
+            function adjustMainContentPadding() {
+                const navbar = document.querySelector('.navbar');
+                const mainContent = document.querySelector('.main-content');
+                if (navbar && mainContent) {
+                    const navbarHeight = navbar.offsetHeight;
+                    document.documentElement.style.setProperty('--navbar-height', navbarHeight + 'px');
+                }
+            }
+            
+            // Apply initial theme state
+            if (initialDarkMode) {
+                document.body.classList.add('dark-mode');
+                if (themeToggle) {
+                    themeToggle.classList.add('dark');
+                }
+                if (logo) {
+                    logo.src = "{% static 'mainApp/images/dark_logo.png' %}";
+                }
+            } else {
+                document.body.classList.remove('dark-mode');
+                if (themeToggle) {
+                    themeToggle.classList.remove('dark');
+                }
+                if (logo) {
+                    logo.src = "{% static 'mainApp/images/logo.png' %}";
+                }
+            }
+            
+            // Adjust padding on load and resize
+            adjustMainContentPadding();
+            window.addEventListener('resize', adjustMainContentPadding);
+            
+            // Handle navbar toggle for mobile
+            const navbarToggler = document.querySelector('.navbar-toggler');
+            if (navbarToggler) {
+                navbarToggler.addEventListener('click', function() {
+                    // Small delay to allow Bootstrap to complete the animation
+                    setTimeout(adjustMainContentPadding, 350);
+                });
+            }
+        });
+
+        // Toggle theme function (available for all users)
+        function toggleTheme() {
+            const themeToggle = document.querySelector('.theme-toggle');
+            const logo = document.querySelector('.navbar-logo');
+            
+            // Toggle the dark-mode class and get the new state
+            const isNowDarkMode = document.body.classList.toggle('dark-mode');
+            
+            // Update toggle appearance based on current state
+            if (isNowDarkMode) {
+                themeToggle.classList.add('dark');
+                // Switch to dark logo
+                if (logo) {
+                    logo.src = "{% static 'mainApp/images/dark_logo.png' %}";
+                }
+            } else {
+                themeToggle.classList.remove('dark');
+                // Switch to light logo
+                if (logo) {
+                    logo.src = "{% static 'mainApp/images/logo.png' %}";
+                }
+            }
+            
+            // Save to server for both authenticated and non-authenticated users
+            fetch('{% url "mainApp:toggle_theme" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .catch(error => {
+                console.error('Error saving theme:', error);
+                // Revert the change if save failed
+                document.body.classList.toggle('dark-mode');
+                const revertedState = document.body.classList.contains('dark-mode');
+                if (revertedState) {
+                    themeToggle.classList.add('dark');
+                    if (logo) {
+                        logo.src = "{% static 'mainApp/images/dark_logo.png' %}";
+                    }
+                } else {
+                    themeToggle.classList.remove('dark');
+                    if (logo) {
+                        logo.src = "{% static 'mainApp/images/logo.png' %}";
+                    }
+                }
+            });
+        }
+    </script>
+    
+    <!-- Charts functionality -->
+    <script src="{% static 'mainApp/js/charts.js' %}"></script>
+</body>
+</html>

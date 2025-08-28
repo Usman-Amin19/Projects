@@ -1,0 +1,59 @@
+{% extends 'mainApp/base.html' %}
+
+{% block title %}Terms Agreement - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <h2 class="h4 mb-2">Terms Agreement Required</h2>
+                        <p class="text-muted">Please read and agree to our terms to continue using HisaabKaro.</p>
+                    </div>
+
+                    <div class="border rounded p-3 mb-4 terms-scroll">
+                        <h6>Terms of Service</h6>
+                        <p class="small text-muted">
+                            By using HisaabKaro, you agree to:
+                        </p>
+                        <ul class="small text-muted">
+                            <li>Use the service responsibly and lawfully</li>
+                            <li>Keep your account credentials secure</li>
+                            <li>Not share sensitive financial information inappropriately</li>
+                            <li>Respect other users' privacy and data</li>
+                            <li>Not attempt to compromise the security of the platform</li>
+                        </ul>
+                        <p class="small text-muted">
+                            For complete terms, please visit our 
+                            <a href="{% url 'mainApp:terms_of_use' %}" target="_blank" class="text-decoration-none">
+                                Terms of Use
+                            </a> page.
+                        </p>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="action" value="agree" class="btn btn-primary flex-fill">
+                                <i class="fas fa-check me-2"></i>I Agree
+                            </button>
+                            <button type="submit" name="action" value="disagree" class="btn btn-outline-secondary flex-fill">
+                                <i class="fas fa-times me-2"></i>I Disagree
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <p class="text-muted small">
+                            Disagreeing will log you out and you won't be able to use the service.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

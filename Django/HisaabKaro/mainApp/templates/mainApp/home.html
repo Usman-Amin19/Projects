@@ -1,0 +1,209 @@
+{% extends 'mainApp/base.html' %}
+{% block title %}Home - HisaabKaro{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<!-- Charts Button -->
+{% if user.is_authenticated %}
+<button class="charts-button" onclick="openChartModal('home')">
+    <i class="fas fa-chart-pie"></i>
+    <span>Show Graphs</span>
+</button>
+{% endif %}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center mb-5">
+                <h1 class="display-4 mb-3">Welcome to HisaabKaro</h1>
+                <p class="lead text-muted">Manage your expenses efficiently, chat with your eat-out fellas, and save your food reviews effectively!</p>
+            </div>
+
+            {% if user.is_authenticated %}
+                <!-- Authenticated User Content -->
+                <div class="row g-4">
+                    <!-- Personal Expenses Card -->
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm expense-card cursor-pointer" onclick="window.location.href='{% url 'mainApp:personal_expenses' %}'">
+                            <div class="card-body d-flex flex-column">
+                                <div class="d-flex align-items-center mb-3">
+                                    <i class="fas fa-user text-primary me-3 icon-lg"></i>
+                                    <h4 class="card-title mb-0">Personal Expenses</h4>
+                                </div>
+                                <p class="card-text text-muted flex-grow-1">
+                                    Track your personal expenses, categorize spending, and monitor your budget. Keep your finances organized and under control.
+                                </p>
+                                {% if personal_count %}
+                                    <div class="mt-auto">
+                                        <small class="text-muted">
+                                            <i class="fas fa-chart-line me-1"></i>
+                                            {{ personal_count }} expense{{ personal_count|pluralize }} totaling ${{ personal_total|floatformat:2 }}
+                                        </small>
+                                    </div>
+                                {% else %}
+                                    <div class="mt-auto">
+                                        <small class="text-muted">
+                                            <i class="fas fa-plus-circle me-1"></i>
+                                            No expenses yet - Click to add your first expense!
+                                        </small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Groups Card -->
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm expense-card cursor-pointer" onclick="window.location.href='{% url 'mainApp:groups' %}'">
+                            <div class="card-body d-flex flex-column">
+                                <div class="d-flex align-items-center mb-3">
+                                    <i class="fas fa-users text-success me-3 icon-lg"></i>
+                                    <h4 class="card-title mb-0">Groups</h4>
+                                </div>
+                                <p class="card-text text-muted flex-grow-1">
+                                    Manage shared expenses with friends, family, or colleagues. Chat with your fellows, split bills, track who owes what, and settle up easily.
+                                </p>
+                                {% if group_count %}
+                                    <div class="mt-auto">
+                                        <small class="text-muted">
+                                            <i class="fas fa-users me-1"></i>
+                                            Member of {{ group_count }} group{{ group_count|pluralize }}
+                                        </small>
+                                    </div>
+                                {% else %}
+                                    <div class="mt-auto">
+                                        <small class="text-muted">
+                                            <i class="fas fa-plus-circle me-1"></i>
+                                            No groups yet - Click to create or join your first group!
+                                        </small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!--
+                Recent Activity (if any)
+                {% if recent_group_expenses %}
+                    <div class="row mt-5">
+                        <div class="col-12">
+                            <h3 class="mb-3">Recent Group Activity</h3>
+                            <div class="list-group">
+                                {% for expense in recent_group_expenses %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ expense.description }}</h6>
+                                            <small class="text-muted">{{ expense.group.name }} • Paid by {{ expense.paid_by.get_full_name|default:expense.paid_by.username }}</small>
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">${{ expense.amount }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                -->
+
+            {% else %}
+                <!-- Non-authenticated User Content -->
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        <div class="card shadow-sm">
+                            <div class="card-body text-center p-5">
+                                <i class="fas fa-sign-in-alt text-primary mb-4 icon-xxl"></i>
+                                <h3 class="mb-4">Please Log In First</h3>
+                                <p class="text-muted mb-4">
+                                    To access Groups and Personal Expenses features, you need to be logged in to your HisaabKaro account.
+                                </p>
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                    <a href="{% url 'mainApp:login' %}" class="btn btn-primary btn-lg me-md-2">
+                                        <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                                    </a>
+                                    <a href="{% url 'mainApp:register' %}" class="btn btn-outline-primary btn-lg">
+                                        <i class="fas fa-user-plus me-2"></i>Create Account
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Features Preview -->
+                <div class="row mt-5 g-4">
+                    <div class="col-md-6">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="fas fa-user text-primary mb-3 icon-xl"></i>
+                                <h5 class="card-title">Personal Expenses</h5>
+                                <p class="card-text text-muted">
+                                    Track your personal spending, categorize expenses, and monitor your budget to stay financially organized.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="fas fa-users text-success mb-3 icon-xl"></i>
+                                <h5 class="card-title">Group Management</h5>
+                                <p class="card-text text-muted">
+                                    Share expenses with friends and family, split bills fairly, and keep track of who owes what.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Chart Modal -->
+{% if user.is_authenticated %}
+<div class="chart-modal" id="chartModal">
+    <div class="chart-modal-content">
+        <div class="chart-modal-header">
+            <h5>Expense Analysis</h5>
+            <button class="chart-close" onclick="closeChartModal()">&times;</button>
+        </div>
+        <div class="chart-modal-body">
+            <div class="chart-options">
+                <div class="chart-option" data-type="day">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Single Day</span>
+                </div>
+                <div class="chart-option" data-type="month">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Single Month</span>
+                </div>
+                <div class="chart-option" data-type="range">
+                    <i class="fas fa-calendar-week"></i>
+                    <span>Date Range</span>
+                </div>
+            </div>
+            
+            <div class="date-inputs" id="dateInputs">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="startDate">Start Date:</label>
+                        <input type="date" class="form-control" id="startDate">
+                    </div>
+                    <div class="col-md-6" id="endDateCol">
+                        <label for="endDate">End Date:</label>
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                </div>
+                <button class="chart-generate-btn" onclick="generateChart()">Generate Chart</button>
+            </div>
+            
+            <div class="chart-container" id="chartContainer">
+                <canvas id="expenseChart" class="chart-canvas"></canvas>
+                <div class="chart-stats" id="chartStats">
+                    <!-- Stats will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

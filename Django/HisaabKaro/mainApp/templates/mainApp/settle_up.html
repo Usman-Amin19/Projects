@@ -1,0 +1,172 @@
+{% extends 'mainApp/base.html' %}
+{% block title %}Settle Up - {{ group.name }} - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-handshake text-success me-2"></i>
+                        Settle Up - {{ group.name }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if single_user %}
+                        <!-- Single User Settlement -->
+                        <div class="text-center mb-4">
+                            <h5>Settle with {{ to_user.first_name }} {{ to_user.last_name }}</h5>
+                            <p class="text-muted">You owe <strong>PKR {{ max_amount }}</strong> to {{ to_user.first_name }}</p>
+                        </div>
+
+                        <form method="post" action="{% url 'mainApp:process_settlement' group.id to_user.id %}" id="settlementForm">
+                            {% csrf_token %}
+                            
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">
+                                    <i class="fas fa-money-bill-wave me-2"></i>
+                                    How much do you want to settle?
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">PKR</span>
+                                    <input type="number" 
+                                           class="form-control" 
+                                           id="amount" 
+                                           name="amount" 
+                                           min="0.01" 
+                                           max="{{ max_amount }}" 
+                                           step="0.01" 
+                                           placeholder="Enter amount"
+                                           required>
+                                </div>
+                                <div class="form-text">
+                                    Maximum amount: PKR {{ max_amount }}
+                                </div>
+                            </div>
+
+                            <!-- Real-time Balance Display -->
+                            <div class="alert alert-info" id="balanceDisplay">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <strong>Total Owed:</strong> PKR {{ max_amount }}
+                                    </div>
+                                    <div class="col-6">
+                                        <strong>Remaining:</strong> PKR <span id="remainingAmount">{{ max_amount }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="notes" class="form-label">
+                                    <i class="fas fa-sticky-note me-2"></i>
+                                    Notes (Optional)
+                                </label>
+                                <textarea class="form-control" 
+                                         id="notes" 
+                                         name="notes" 
+                                         rows="3" 
+                                         placeholder="Add any notes about this settlement..."></textarea>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>Cancel
+                                </a>
+                                <button type="submit" class="btn btn-success" id="submitBtn">
+                                    <i class="fas fa-handshake me-2"></i>Send Settlement Request
+                                </button>
+                            </div>
+                        </form>
+
+                    {% else %}
+                        <!-- Multiple Users - Show List -->
+                        <div class="text-center mb-4">
+                            <h5>Choose who to settle with</h5>
+                            <p class="text-muted">You have outstanding debts with multiple people</p>
+                        </div>
+
+                        {% if users_owed %}
+                            <div class="list-group">
+                                {% for user, data in users_owed.items %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ user.first_name }} {{ user.last_name }}</h6>
+                                        <small class="text-muted">@{{ user.username }}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="text-danger fw-bold mb-2">PKR {{ data.amount }}</div>
+                                        {% if data.has_pending %}
+                                            <button class="btn btn-sm btn-secondary" disabled title="Settlement request pending">
+                                                <i class="fas fa-clock me-1"></i>Pending
+                                            </button>
+                                        {% else %}
+                                            <a href="{% url 'mainApp:settle_up_single' group.id user.id %}" 
+                                               class="btn btn-sm btn-success">
+                                                <i class="fas fa-handshake me-1"></i>Settle Up
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    You don't owe money to anyone in this group!
+                                </div>
+                                <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-primary">
+                                    <i class="fas fa-arrow-left me-2"></i>Back to Group
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if single_user %}
+    const amountInput = document.getElementById('amount');
+    const remainingSpan = document.getElementById('remainingAmount');
+    const submitBtn = document.getElementById('submitBtn');
+    const maxAmount = {{ max_amount }};
+    
+    function updateBalance() {
+        const settleAmount = parseFloat(amountInput.value) || 0;
+        const remaining = maxAmount - settleAmount;
+        
+        remainingSpan.textContent = remaining.toFixed(2);
+        
+        // Update button state
+        if (settleAmount <= 0 || settleAmount > maxAmount) {
+            submitBtn.disabled = true;
+            remainingSpan.style.color = 'red';
+        } else {
+            submitBtn.disabled = false;
+            remainingSpan.style.color = remaining === 0 ? 'green' : 'black';
+        }
+        
+        // Update validation message
+        if (settleAmount > maxAmount) {
+            amountInput.setCustomValidity(`Amount cannot exceed PKR ${maxAmount}`);
+        } else if (settleAmount <= 0) {
+            amountInput.setCustomValidity('Amount must be greater than zero');
+        } else {
+            amountInput.setCustomValidity('');
+        }
+    }
+    
+    amountInput.addEventListener('input', updateBalance);
+    amountInput.addEventListener('change', updateBalance);
+    
+    // Initialize
+    updateBalance();
+    {% endif %}
+});
+</script>
+{% endblock %}

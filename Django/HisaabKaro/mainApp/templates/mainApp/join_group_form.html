@@ -1,0 +1,73 @@
+{% extends 'mainApp/base.html' %}
+
+{% block title %}Join Group - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-users me-2"></i>Join a Group
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        Paste the invite link you received to join a group and start sharing expenses.
+                    </p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="invite_link" class="form-label">
+                                <i class="fas fa-link me-1"></i>Invite Link
+                            </label>
+                            <textarea 
+                                class="form-control" 
+                                id="invite_link" 
+                                name="invite_link" 
+                                rows="3" 
+                                placeholder="Paste the complete invite link here..." 
+                                required
+                            ></textarea>
+                            <div class="form-text">
+                                You can paste either the complete URL or just the token part.
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt me-2"></i>Join Group
+                            </button>
+                            <a href="{% url 'mainApp:groups' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Groups
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Help Section -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-question-circle me-2"></i>Need Help?
+                    </h6>
+                    <div class="small text-muted">
+                        <p class="mb-2">
+                            <strong>How to get an invite link:</strong><br>
+                            Ask a group member to share their group's invite link with you.
+                        </p>
+                        <p class="mb-0">
+                            <strong>Link formats accepted:</strong><br>
+                            • Complete URL: <code>http://example.com/groups/join/abc123...</code><br>
+                            • Token only: <code>abc123-def456-ghi789...</code>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
