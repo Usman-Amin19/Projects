@@ -198,7 +198,7 @@ function displayChart(data, periodType, startDate, endDate) {
                         label: function(context) {
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             const percentage = ((context.raw / total) * 100).toFixed(1);
-                            return context.label + ': PKR ' + context.raw.toFixed(2) + ' (' + percentage + '%)';
+                            return context.label + ': PKR ' + Math.round(context.raw) + ' (' + percentage + '%)';
                         }
                     }
                 }
@@ -224,7 +224,7 @@ function updateChartStats(data, periodType, startDate, endDate) {
     
     let statsHTML = `
         <div class="chart-stat">
-            <div class="chart-stat-value">PKR ${(data.total || 0).toFixed(2)}</div>
+            <div class="chart-stat-value">PKR ${Math.round(data.total || 0)}</div>
             <div class="chart-stat-label">Total Spending</div>
         </div>
         <div class="chart-stat">
@@ -241,7 +241,7 @@ function updateChartStats(data, periodType, startDate, endDate) {
     if (currentChartType === 'group_detail' && data.group_total !== undefined) {
         statsHTML += `
             <div class="chart-stat">
-                <div class="chart-stat-value">PKR ${data.group_total.toFixed(2)}</div>
+                <div class="chart-stat-value">PKR ${Math.round(data.group_total)}</div>
                 <div class="chart-stat-label">Group Total</div>
             </div>
             <div class="chart-stat">

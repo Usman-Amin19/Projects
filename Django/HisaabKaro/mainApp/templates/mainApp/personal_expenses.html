@@ -5,10 +5,10 @@
 {% block content %}
 {% csrf_token %}
 <!-- Charts Button -->
-<button class="charts-button" onclick="openChartModal('personal')">
+<a href="{% url 'mainApp:charts_page' 'personal' %}" class="charts-button">
     <i class="fas fa-chart-pie"></i>
     <span>Show Graphs</span>
-</button>
+</a>
 
     <div class="header">
         <h1>Personal Expenses</h1>
@@ -24,7 +24,7 @@
     {% if expenses %}
         <div class="summary-cards">
             <div class="summary-card">
-                <div class="summary-value">${{ expenses|length }}</div>
+                <div class="summary-value">{{ expenses|length }}</div>
                 <div class="summary-label">Total Expenses</div>
             </div>
             <div class="summary-card">
@@ -46,7 +46,7 @@
                         {% endif %}
                     </div>
                 </div>
-                <div class="expense-amount">${{ expense.amount }}</div>
+                <div class="expense-amount">PKR {{ expense.amount|floatformat:0 }}</div>
             </div>
             {% endfor %}
         </div>
@@ -57,50 +57,4 @@
         </div>
     {% endif %}
 
-<!-- Chart Modal -->
-<div class="chart-modal" id="chartModal">
-    <div class="chart-modal-content">
-        <div class="chart-modal-header">
-            <h5>Personal Expense Analysis</h5>
-            <button class="chart-close" onclick="closeChartModal()">&times;</button>
-        </div>
-        <div class="chart-modal-body">
-            <div class="chart-options">
-                <div class="chart-option" data-type="day">
-                    <i class="fas fa-calendar-day"></i>
-                    <span>Single Day</span>
-                </div>
-                <div class="chart-option" data-type="month">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Single Month</span>
-                </div>
-                <div class="chart-option" data-type="range">
-                    <i class="fas fa-calendar-week"></i>
-                    <span>Date Range</span>
-                </div>
-            </div>
-            
-            <div class="date-inputs" id="dateInputs">
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="startDate">Start Date:</label>
-                        <input type="date" class="form-control" id="startDate">
-                    </div>
-                    <div class="col-md-6" id="endDateCol">
-                        <label for="endDate">End Date:</label>
-                        <input type="date" class="form-control" id="endDate">
-                    </div>
-                </div>
-                <button class="chart-generate-btn" onclick="generateChart()">Generate Chart</button>
-            </div>
-            
-            <div class="chart-container" id="chartContainer">
-                <canvas id="expenseChart" class="chart-canvas"></canvas>
-                <div class="chart-stats" id="chartStats">
-                    <!-- Stats will be populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}

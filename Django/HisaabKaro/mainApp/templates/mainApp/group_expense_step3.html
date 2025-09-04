@@ -1,113 +1,8 @@
 {% extends 'mainApp/base.html' %}
 {% load static %}
+{% load dict_extras %}
 
 {% block title %}Add Group Expense - Step 3{% endblock %}
-
-{% block extra_css %}
-<style>
-    .step-indicator {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 2rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .step {
-        text-align: center;
-        color: white;
-        flex: 1;
-        position: relative;
-    }
-
-    .step.active {
-        font-weight: bold;
-    }
-
-    .step.active::after {
-        content: '';
-        position: absolute;
-        bottom: -5px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 20px;
-        height: 3px;
-        background-color: #ffd700;
-        border-radius: 2px;
-    }
-
-    .step.completed {
-        color: #ffd700;
-    }
-
-    .form-card {
-        background: white;
-        border-radius: 15px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-        padding: 2rem;
-        margin: 1rem 0;
-        border: 1px solid #e0e0e0;
-    }
-
-    .participant-card {
-        border: 2px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        transition: all 0.3s ease;
-        background: white;
-    }
-
-    .participant-card:hover {
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .btn-gradient {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        color: white;
-        padding: 0.75rem 1.5rem;
-        border-radius: 25px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .btn-gradient:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-        color: white;
-    }
-
-    .input-group-text {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-    }
-
-    .form-control:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-    }
-
-    .progress-info {
-        background: #f8f9fa;
-        border-left: 4px solid #007bff;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0 8px 8px 0;
-    }
-
-    .contribution-summary {
-        background: #fff3cd;
-        border-left: 4px solid #ffc107;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0 8px 8px 0;
-    }
-</style>
-{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -148,8 +43,9 @@
                     <p class="text-muted">Enter how much each participant contributed</p>
                 </div>
 
-                <div class="progress-info">
-                    <strong>Total Amount:</strong> PKR{{ expense_data.amount }}
+                <!-- Contribution Summary - moved above participants -->
+                <div class="contribution-summary text-warning" id="contributionSummary">
+                    <i class="fas fa-disclaimer"></i> <strong>Remaining:</strong> PKR <span id="remainingAmount">{{ expense_data.amount }}</span> out of PKR {{ expense_data.amount }}
                 </div>
 
                 {% for participant in participants %}
@@ -169,19 +65,13 @@
                                 <span class="input-group-text">PKR</span>
                                 <input type="number" class="form-control contribution-input" 
                                        name="contribution_{{ participant.id }}" 
-                                       value="{{ expense_data.contributions|default_if_none:''|get_item:participant.id|default:'0.00' }}"
-                                       step="0.01" min="0" placeholder="0.00">
+                                       value="{{ expense_data.contributions|default_if_none:''|get_item:participant.id|default:'0' }}"
+                                       step="1" min="0" placeholder="0">
                             </div>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
-
-                <div class="contribution-summary" id="contributionSummary">
-                    <strong>Total Contributed:</strong> PKR<span id="totalContributed">0.00</span> / PKR{{ expense_data.amount }}
-                    <br>
-                    <strong>Remaining:</strong> PKR<span id="remainingAmount">{{ expense_data.amount }}</span>
-                </div>
 
                 <div class="d-grid gap-2 d-md-flex justify-content-md-between mt-4">
                     {% if is_editing %}
@@ -216,20 +106,27 @@ function updateContributionSummary() {
     
     const remaining = totalAmount - totalContributed;
     
-    document.getElementById('totalContributed').textContent = totalContributed.toFixed(2);
-    document.getElementById('remainingAmount').textContent = remaining.toFixed(2);
+    document.getElementById('remainingAmount').textContent = Math.round(remaining);
     
-    // Update styling based on remaining amount
+    // Update styling and text color based on remaining amount
     const summaryDiv = document.getElementById('contributionSummary');
-    if (Math.abs(remaining) < 0.01) { // Allow small floating point differences
-        summaryDiv.style.background = '#d4edda';
+    const nextButton = document.getElementById('nextContributionButton');
+    
+    // Remove all previous text color classes
+    summaryDiv.classList.remove('text-warning', 'text-success', 'text-danger');
+    
+    if (Math.abs(remaining) < 0.01) { // Exact match - success
+        summaryDiv.classList.add('text-success');
         summaryDiv.style.borderColor = '#28a745';
-    } else if (remaining < 0) {
-        summaryDiv.style.background = '#f8d7da';
+        nextButton.disabled = false; // Enable next button
+    } else if (remaining < 0) { // Over-contribution - danger
+        summaryDiv.classList.add('text-danger');
         summaryDiv.style.borderColor = '#dc3545';
-    } else {
-        summaryDiv.style.background = '#fff3cd';
+        nextButton.disabled = true; // Disable next button
+    } else { // Under-contribution - warning
+        summaryDiv.classList.add('text-warning');
         summaryDiv.style.borderColor = '#ffc107';
+        nextButton.disabled = true; // Disable next button
     }
 }
 

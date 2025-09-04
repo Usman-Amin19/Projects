@@ -4,7 +4,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from decimal import Decimal
 from datetime import datetime, date, timedelta
-from .models import PersonalExpense, GroupExpense, Group, Category, ExpenseSplit, GroupHistory, UserProfile, ExpenseHistory, SettlementRequest, ChatMessage, GroupMembership, ChatMessageRead
+from django.template.defaultfilters import timesince
+from .models import PersonalExpense, GroupExpense, Group, Category, ExpenseSplit, GroupHistory, UserProfile, ExpenseHistory, SettlementRequest, ChatMessage, GroupMembership, ChatMessageRead, Notification
 import logging
 
 from django.conf import settings
@@ -18,7 +19,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 from .decorators import user_not_authenticated, expense_step_required
-from .forms import CustomUserRegistrationForm, CustomUserLoginForm, CustomPasswordResetForm, CustomSetPasswordForm
+from .forms import CustomUserRegistrationForm, CustomUserLoginForm, CustomPasswordResetForm, CustomSetPasswordForm, CustomChangePasswordForm
 
 logger = logging.getLogger(__name__)
 
@@ -165,17 +166,17 @@ def send_verification_email(request, user):
     )
     subject = 'Verify Your Email for HisaabKaro'
     message = f'''
-        Hi {user.first_name},
+Hi {user.first_name},
 
-        Thank you for registering! Please click the link below to verify your email address:
+Thank you for registering! Please click the link below to verify your email address:
 
-        {verify_url}
+{verify_url}
 
-        If you did not create this account, you can safely ignore this email.
+If you did not create this account, you can safely ignore this email.
 
-        Thank you,
-        HisaabKaro Team
-    '''
+Thank you,
+HisaabKaro Team
+'''
     try:
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email])
         logger.info(f"Verification email sent successfully to {user.email}")
@@ -200,19 +201,19 @@ def password_reset(request):
                 )
                 subject = 'Password Reset for HisaabKaro'
                 message = f'''
-                    Hi {user.first_name or user.username},
+Hi {user.first_name or user.username},
 
-                    You requested a password reset for your HisaabKaro account.
-                    Please click the link below to reset your password:
+You requested a password reset for your HisaabKaro account.
+Please click the link below to reset your password:
 
-                    {reset_url}
+{reset_url}
 
-                    If you did not request this, please ignore this email.
-                    This link will expire in 24 hours.
+If you did not request this, please ignore this email.
+This link will expire in 24 hours.
 
-                    Thank you,
-                    HisaabKaro Team
-                '''
+Thank you,
+HisaabKaro Team
+'''
                 try:
                     send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email])
                     return redirect('mainApp:password_reset_done')
@@ -247,6 +248,9 @@ def password_reset_confirm(request, uidb64, token):
                 messages.success(request, "Your password has been successfully reset.")
                 return redirect('mainApp:password_reset_complete')
             else:
+                for field, errors in reset_form.errors.items():
+                    for error in errors:
+                        messages.error(request, error)
                 return render(request, "mainApp/password_reset_confirm.html", {
                     "form": reset_form,
                     "uidb64": uidb64,
@@ -275,90 +279,55 @@ def password_reset_complete(request):
 
 @login_required
 def profile_page(request):
-    """View for the user's profile page with editing capabilities"""
+    """View for the user's profile page (read-only display)"""
+    context = {
+        'user': request.user,
+    }
+    return render(request, 'mainApp/profile.html', context)
+
+@login_required
+def edit_profile(request):
+    """View for editing user profile"""
     if request.method == 'POST':
-        action = request.POST.get('action')
+        # Update profile information
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
         
-        if action == 'update_profile':
-            # Update profile information
-            first_name = request.POST.get('first_name', '').strip()
-            last_name = request.POST.get('last_name', '').strip()
-            email = request.POST.get('email', '').strip().lower()
+        # Validation
+        if not first_name:
+            messages.error(request, "First name is required.")
+            return render(request, 'mainApp/edit_profile.html', {'user': request.user})
+        
+        if len(first_name) > 30:
+            messages.error(request, "First name must be 30 characters or less.")
+            return render(request, 'mainApp/edit_profile.html', {'user': request.user})
             
-            # Validation
-            if not first_name:
-                messages.error(request, "First name is required.")
-                return redirect('mainApp:profile')
+        if len(last_name) > 30:
+            messages.error(request, "Last name must be 30 characters or less.")
+            return render(request, 'mainApp/edit_profile.html', {'user': request.user})
             
-            if len(first_name) > 30:
-                messages.error(request, "First name must be 30 characters or less.")
-                return redirect('mainApp:profile')
-                
-            if len(last_name) > 30:
-                messages.error(request, "Last name must be 30 characters or less.")
-                return redirect('mainApp:profile')
-            
-            if not email:
-                messages.error(request, "Email is required.")
-                return redirect('mainApp:profile')
-                
-            # Basic email validation
-            import re
-            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-            if not re.match(email_pattern, email):
-                messages.error(request, "Please enter a valid email address.")
-                return redirect('mainApp:profile')
-            
-            # Check if email is already taken by another user
-            if User.objects.filter(email=email).exclude(id=request.user.id).exists():
-                messages.error(request, "This email is already registered with another account.")
-                return redirect('mainApp:profile')
-            
-            # Update user information
-            request.user.first_name = first_name
-            request.user.last_name = last_name
-            request.user.email = email
-            request.user.username = email  # Email is username
-            request.user.save()
-            
-            messages.success(request, "Profile updated successfully!")
-            return redirect('mainApp:profile')
-            
-        elif action == 'change_password':
-            # Change password
-            current_password = request.POST.get('current_password')
-            new_password = request.POST.get('new_password')
-            confirm_password = request.POST.get('confirm_password')
-            
-            # Validation
-            if not current_password:
-                messages.error(request, "Current password is required.")
-                return redirect('mainApp:profile')
-                
-            if not request.user.check_password(current_password):
-                messages.error(request, "Current password is incorrect.")
-                return redirect('mainApp:profile')
-            
-            if not new_password:
-                messages.error(request, "New password is required.")
-                return redirect('mainApp:profile')
-                
-            if len(new_password) < 8:
-                messages.error(request, "New password must be at least 8 characters long.")
-                return redirect('mainApp:profile')
-            
-            if new_password != confirm_password:
-                messages.error(request, "New passwords do not match.")
-                return redirect('mainApp:profile')
-                
-            # Additional password strength validation
-            if new_password.lower() in [request.user.first_name.lower(), request.user.last_name.lower(), request.user.email.lower()]:
-                messages.error(request, "Password cannot be similar to your personal information.")
-                return redirect('mainApp:profile')
-            
-            # Update password
-            request.user.set_password(new_password)
-            request.user.save()
+        
+        # Update user information
+        request.user.first_name = first_name
+        request.user.last_name = last_name
+        request.user.save()
+        
+        messages.success(request, "Profile updated successfully!")
+        return redirect('mainApp:profile')
+    
+    # GET request
+    context = {
+        'user': request.user,
+    }
+    return render(request, 'mainApp/edit_profile.html', context)
+
+@login_required
+def change_password(request):
+    """View for changing user password using CustomChangePasswordForm"""
+    if request.method == 'POST':
+        form = CustomChangePasswordForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            form.save()
             
             # Update session to keep user logged in
             from django.contrib.auth import update_session_auth_hash
@@ -366,12 +335,133 @@ def profile_page(request):
             
             messages.success(request, "Password changed successfully!")
             return redirect('mainApp:profile')
+    else:
+        form = CustomChangePasswordForm(user=request.user)
     
-    # GET request
-    context = {
-        'user': request.user,
-    }
-    return render(request, 'mainApp/profile.html', context)
+    return render(request, 'mainApp/change_password.html', {'form': form})
+
+@login_required
+def check_pending_dues(request):
+    """AJAX view to check if user has pending dues before account deletion"""
+    from django.http import JsonResponse
+    from decimal import Decimal
+    
+    try:
+        pending_groups = []
+        
+        # Check all groups where user is a member
+        user_memberships = GroupMembership.objects.filter(user=request.user)
+        
+        for membership in user_memberships:
+            group = membership.group
+            
+            # Calculate user's balance in this group
+            user_balance = Decimal('0.00')
+            
+            # Get all expenses where this user is involved
+            expenses = GroupExpense.objects.filter(group=group)
+            
+            for expense in expenses:
+                # Check if user paid for this expense
+                if expense.paid_by == request.user:
+                    user_balance += expense.amount
+                
+                # Check if user owes money for this expense
+                splits = ExpenseSplit.objects.filter(expense=expense, user=request.user)
+                for split in splits:
+                    user_balance -= split.amount
+            
+            # If balance is not zero, user has pending dues
+            if abs(user_balance) > Decimal('0.01'):  # Allow for small rounding errors
+                if user_balance > 0:
+                    pending_groups.append(f"{group.name} (You are owed PKR {user_balance:.2f})")
+                else:
+                    pending_groups.append(f"{group.name} (You owe PKR {abs(user_balance):.2f})")
+        
+        return JsonResponse({
+            'has_pending_dues': len(pending_groups) > 0,
+            'pending_groups': pending_groups
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': 'Error checking pending dues',
+            'has_pending_dues': True,  # Err on the side of caution
+            'pending_groups': []
+        }, status=500)
+
+@login_required
+def delete_account(request):
+    """AJAX view to delete user account after checking for pending dues"""
+    from django.http import JsonResponse
+    from decimal import Decimal
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        # Double-check for pending dues
+        user_memberships = GroupMembership.objects.filter(user=request.user)
+        has_pending_dues = False
+        
+        for membership in user_memberships:
+            group = membership.group
+            user_balance = Decimal('0.00')
+            
+            expenses = GroupExpense.objects.filter(group=group)
+            for expense in expenses:
+                if expense.paid_by == request.user:
+                    user_balance += expense.amount
+                
+                splits = ExpenseSplit.objects.filter(expense=expense, user=request.user)
+                for split in splits:
+                    user_balance -= split.amount
+            
+            if abs(user_balance) > Decimal('0.01'):
+                has_pending_dues = True
+                break
+        
+        if has_pending_dues:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot delete account with pending dues. Please settle all balances first.'
+            })
+        
+        # Check if user is admin of any groups with other members
+        admin_groups = Group.objects.filter(created_by=request.user)
+        for group in admin_groups:
+            member_count = GroupMembership.objects.filter(group=group).count()
+            if member_count > 1:  # More than just the admin
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Cannot delete account. You are admin of group "{group.name}" which has other members. Please transfer admin rights or ensure all members leave the group first.'
+                })
+        
+        # If we get here, it's safe to delete the account
+        user_email = request.user.email
+        
+        # Delete user account (this will cascade delete related objects)
+        request.user.delete()
+        
+        # Log the deletion
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"User account deleted: {user_email}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Account deleted successfully'
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deleting account for user {request.user.email}: {str(e)}")
+        
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while deleting your account. Please try again or contact support.'
+        }, status=500)
 
 def home(request):
     context = {}
@@ -405,6 +495,8 @@ def home(request):
 @login_required
 def groups(request):
     """View for listing all groups"""
+    from decimal import Decimal
+    
     user_groups = Group.objects.filter(members=request.user, is_active=True)
     
     group_data = []
@@ -413,8 +505,8 @@ def groups(request):
         group_data.append({
             'group': group,
             'balance': balance,
-            'you_owe': balance < 0,
-            'you_are_owed': balance > 0,
+            'you_owe': balance < Decimal('0'),
+            'you_are_owed': balance > Decimal('0'),
         })
     
     return render(request, 'mainApp/groups.html', {'group_data': group_data})
@@ -428,6 +520,14 @@ def group_detail(request, group_id):
     # Calculate user's balance in this group
     balance = group.get_balance_for_user(request.user)
     detailed_balance = group.get_detailed_balance_for_user(request.user)
+    
+    # Calculate overall balance from detailed balance
+    from decimal import Decimal
+    overall_balance = sum([
+        balance_item['amount'] if balance_item['type'] == 'owed_to_you' 
+        else -balance_item['amount'] 
+        for balance_item in detailed_balance
+    ], Decimal('0'))  # Start with Decimal('0') instead of 0
     
     # Check for pending settlements
     has_pending_settlements = group.has_pending_settlements_from_user(request.user)
@@ -447,14 +547,60 @@ def group_detail(request, group_id):
         'expenses': expenses,
         'balance': balance,
         'detailed_balance': detailed_balance,
-        'you_owe': balance < 0,
-        'you_are_owed': balance > 0,
+        'overall_balance': overall_balance,
+        'you_owe': overall_balance < Decimal('0'),
+        'you_are_owed': overall_balance > Decimal('0'),
         'has_pending_settlements': has_pending_settlements,
         'pending_settlements': pending_settlements_to_approve,
         'history': history,
         'user': request.user,
     }
     return render(request, 'mainApp/group_detail.html', context)
+
+@login_required
+def expense_detail(request, group_id, expense_id):
+    """View for showing detailed expense information"""
+    group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
+    expense = get_object_or_404(GroupExpense, id=expense_id, group=group)
+    
+    # Check if user is a participant of this expense
+    if request.user not in expense.participants.all():
+        messages.error(request, "You can only view expenses you participated in.")
+        return redirect('mainApp:group_detail', group_id=group.id)
+    
+    # Calculate total contributions
+    from decimal import Decimal
+    total_contributions = sum([split.contribution for split in expense.splits.all()], Decimal('0'))
+    
+    # Calculate net balances for each split
+    splits_with_net = []
+    for split in expense.splits.all():
+        net_balance = split.contribution - split.amount
+        splits_with_net.append({
+            'split': split,
+            'net_balance': net_balance,
+            'net_positive': net_balance > 0,
+            'net_negative': net_balance < 0,
+            'net_zero': abs(net_balance) < Decimal('0.01')
+        })
+    
+    # Calculate per-person amount for equal splits
+    per_person_amount = None
+    if expense.split_type == 'equal' and expense.participants.count() > 0:
+        per_person_amount = expense.amount / expense.participants.count()
+    
+    # Get expense history
+    history = expense.history.all().order_by('-timestamp')[:10]  # Show last 10 history entries
+    
+    context = {
+        'group': group,
+        'expense': expense,
+        'total_contributions': total_contributions,
+        'splits_with_net': splits_with_net,
+        'per_person_amount': per_person_amount,
+        'history': history,
+    }
+    return render(request, 'mainApp/expense_detail.html', context)
 
 @login_required
 def create_group(request):
@@ -662,8 +808,17 @@ def delete_group_expense(request, group_id, expense_id):
             group=group,
             action='expense_deleted',
             performed_by=request.user,
-            description=f"Expense '{expense.title}' (${expense.amount}) was deleted"
+            description=f"Expense '{expense.title}' (PKR {expense.amount}) was deleted"
         )
+        
+        # Create notifications for group members before deleting
+        try:
+            notifications = Notification.create_expense_notification(expense, 'expense_deleted', request.user)
+            # Send real-time updates
+            for notification in notifications:
+                send_notification_update(notification.user)
+        except Exception as e:
+            print(f"Error creating notifications: {e}")
         
         # Delete the expense (this will cascade to splits and history)
         expense_title = expense.title
@@ -772,7 +927,7 @@ def add_group_expense_step1(request, group_id):
         request.session.modified = True
         
         messages.success(request, "Basic details saved! Now select participants.")
-        return redirect('mainApp:group_expense_step2', group_id=group_id)
+        return redirect('mainApp:add_group_expense_step2', group_id=group_id)
     
     # GET request - show form with any existing data
     expense_data = get_expense_session_data(request)
@@ -822,7 +977,7 @@ def add_group_expense_step2(request, group_id):
         request.session.modified = True
         
         messages.success(request, "Participants selected! Now set contributions.")
-        return redirect('mainApp:group_expense_step3', group_id=group_id)
+        return redirect('mainApp:add_group_expense_step3', group_id=group_id)
     
     # GET request
     context = {
@@ -859,7 +1014,7 @@ def add_group_expense_step3(request, group_id):
         request.session.modified = True
         
         messages.success(request, "Contributions set! Now choose how to split the expense.")
-        return redirect('mainApp:group_expense_step4', group_id=group_id)
+        return redirect('mainApp:add_group_expense_step4', group_id=group_id)
     
     # GET request
     context = {
@@ -957,6 +1112,15 @@ def add_group_expense_step4(request, group_id):
             description=f"Expense '{expense.title}' was added for PKR{expense.amount}"
         )
         
+        # Create notifications for group members
+        try:
+            notifications = Notification.create_expense_notification(expense, 'expense_added', request.user)
+            # Send real-time updates
+            for notification in notifications:
+                send_notification_update(notification.user)
+        except Exception as e:
+            print(f"Error creating notifications: {e}")
+        
         # Clear session data
         clear_expense_session(request)
         
@@ -971,7 +1135,7 @@ def add_group_expense_step4(request, group_id):
         'expense_data': expense_data,
         'is_editing': False,
     }
-    return render(request, 'mainApp/add_group_expense_step4.html', context)
+    return render(request, 'mainApp/group_expense_step4.html', context)
 
 # ============== EDIT EXPENSE STEP VIEWS ==============
 
@@ -980,6 +1144,11 @@ def edit_group_expense_step1(request, group_id, expense_id):
     """Step 1: Edit basic expense details"""
     group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
     expense = get_object_or_404(GroupExpense, id=expense_id, group=group)
+    
+    # Clear any existing session data when starting fresh edit
+    if 'expense_data' in request.session:
+        del request.session['expense_data']
+        request.session.modified = True
     
     # Check if user is a participant
     if request.user not in expense.participants.all():
@@ -1003,6 +1172,10 @@ def edit_group_expense_step1(request, group_id, expense_id):
                 category_id = str(new_category.id)
                 messages.success(request, f"New category '{new_category_name}' created successfully!")
         
+        # Get existing session data to check for changes
+        existing_expense_data = get_expense_session_data(request) or {}
+        existing_amount = existing_expense_data.get('amount', str(expense.amount))
+        
         # Store in session for next steps
         expense_data = {
             'title': title,
@@ -1015,11 +1188,21 @@ def edit_group_expense_step1(request, group_id, expense_id):
             'original_participants': list(expense.participants.values_list('id', flat=True)),
             'is_editing': True,
         }
-        request.session['expense_data'] = expense_data
+        
+        # If amount changed, clear downstream data that depends on amount
+        if str(amount) != str(existing_amount):
+            existing_expense_data.pop('contributions', None)
+            existing_expense_data.pop('step_3_completed', None)
+            existing_expense_data.pop('step_4_completed', None)
+            messages.info(request, "Amount updated. Please review contributions and splits again.")
+        
+        # Preserve other existing data and update with new data
+        existing_expense_data.update(expense_data)
+        request.session['expense_data'] = existing_expense_data
         request.session.modified = True
         
         messages.success(request, "Basic details updated! Now review participants.")
-        return redirect('mainApp:group_expense_step2', group_id=group_id, expense_id=expense_id)
+        return redirect('mainApp:edit_group_expense_step2', group_id=group_id, expense_id=expense_id)
     
     # GET request - pre-fill with existing data
     expense_data = get_expense_session_data(request)
@@ -1070,16 +1253,28 @@ def edit_group_expense_step2(request, group_id, expense_id):
             }
             return render(request, 'mainApp/group_expense_step2.html', context)
         
+        # Check if participants have changed
+        previous_participants = set(expense_data.get('participant_ids', []))
+        new_participants = set(participant_ids)
+        
         # Update session data
         expense_data.update({
             'participant_ids': participant_ids,
             'step_2_completed': True,
         })
+        
+        # If participants changed, clear the contributions and splits data
+        if previous_participants != new_participants:
+            expense_data.pop('contributions', None)
+            expense_data.pop('step_3_completed', None)
+            expense_data.pop('step_4_completed', None)
+            messages.info(request, "Participants updated. Please review contributions and splits again.")
+        
         request.session['expense_data'] = expense_data
         request.session.modified = True
         
         messages.success(request, "Participants updated! Now review contributions.")
-        return redirect('mainApp:group_expense_step3', group_id=group_id, expense_id=expense_id)
+        return redirect('mainApp:edit_group_expense_step3', group_id=group_id, expense_id=expense_id)
     
     # GET request - pre-fill with existing participants
     if not expense_data.get('participant_ids'):
@@ -1121,7 +1316,7 @@ def edit_group_expense_step3(request, group_id, expense_id):
         request.session.modified = True
         
         messages.success(request, "Contributions updated! Now finalize the split.")
-        return redirect('mainApp:group_expense_step4', group_id=group_id, expense_id=expense_id)
+        return redirect('mainApp:edit_group_expense_step4', group_id=group_id, expense_id=expense_id)
     
     # GET request - pre-fill with existing contributions
     if not expense_data.get('contributions'):
@@ -1129,6 +1324,21 @@ def edit_group_expense_step3(request, group_id, expense_id):
         for split in expense.splits.all():
             contributions[str(split.user.id)] = str(split.contribution)
         expense_data['contributions'] = contributions
+    else:
+        # Check if participants have changed and update contributions accordingly
+        existing_contributions = expense_data.get('contributions', {})
+        updated_contributions = {}
+        
+        # Only keep contributions for current participants
+        for participant_id in participant_ids:
+            if participant_id in existing_contributions:
+                updated_contributions[participant_id] = existing_contributions[participant_id]
+            else:
+                # New participant - get their existing contribution from database or default to 0
+                existing_split = expense.splits.filter(user_id=participant_id).first()
+                updated_contributions[participant_id] = str(existing_split.contribution) if existing_split else '0'
+        
+        expense_data['contributions'] = updated_contributions
     
     context = {
         'group': group,
@@ -1253,22 +1463,38 @@ def edit_group_expense_step4(request, group_id, expense_id):
         messages.success(request, f"Expense '{expense.title}' updated successfully!")
         return redirect('mainApp:group_detail', group_id=group.id)
     
-    # GET request - pre-fill with existing split data
+    # GET request - pre-fill with existing split data for current participants only
     existing_splits = {}
+    participant_ids = expense_data.get('participant_ids', [])
+    
     for split in expense.splits.all():
-        existing_splits[str(split.user.id)] = {
-            'amount': str(split.amount),
-            'percentage': str(split.percentage) if split.percentage else '0',
+        # Only include splits for participants that are still selected
+        if str(split.user.id) in participant_ids:
+            existing_splits[str(split.user.id)] = {
+                'amount': str(split.amount),
+                'percentage': str(split.percentage) if split.percentage else '0',
+            }
+    
+    # Get expense data from session or create from existing expense
+    if not expense_data:
+        expense_data = {
+            'title': expense.title,
+            'amount': str(expense.amount),
+            'description': expense.description,
+            'category_id': expense.category.id if expense.category else None,
+            'expense_id': expense_id,
         }
     
     context = {
         'group': group,
         'expense': expense,
-        'participants': expense.participants.all(),
+        'participants': participants,  # Use session participants
         'categories': Category.objects.all(),
         'existing_splits': existing_splits,
         'split_type': expense.split_type,
-        'step': 4
+        'step': 4,
+        'expense_data': expense_data,  # Add expense_data
+        'is_editing': True,  # Add is_editing flag
     }
     return render(request, 'mainApp/group_expense_step4.html', context)
 
@@ -1353,13 +1579,21 @@ def process_settlement(request, group_id, user_id):
         return redirect('mainApp:settle_up_single', group_id=group.id, user_id=user_id)
     
     # Create settlement request
-    SettlementRequest.objects.create(
+    settlement = SettlementRequest.objects.create(
         group=group,
         from_user=request.user,
         to_user=to_user,
         amount=settle_amount,
         notes=request.POST.get('notes', '')
     )
+    
+    # Create notification for settlement request
+    try:
+        notification = Notification.create_settlement_notification(settlement, 'settle_request')
+        if notification:
+            send_notification_update(notification.user)
+    except Exception as e:
+        print(f"Error creating settlement notification: {e}")
     
     messages.success(request, f"Settlement request of PKR {settle_amount} sent to {to_user.first_name} {to_user.last_name}. Waiting for approval.")
     return redirect('mainApp:group_detail', group_id=group.id)
@@ -1380,34 +1614,67 @@ def respond_to_settlement(request, group_id, settlement_id):
         settlement.responded_at = timezone.now()
         settlement.save()
         
-        # Find and settle the actual expense splits
-        # Get all unsettled splits where from_user owes to_user
-        unsettled_splits = ExpenseSplit.objects.filter(
+        # Find all unsettled splits between these two users in this group
+        from_user = settlement.from_user
+        to_user = settlement.to_user
+        
+        # Case 1: from_user owes to_user (to_user paid, from_user has splits)
+        unsettled_splits_case1 = ExpenseSplit.objects.filter(
             expense__group=group,
-            user=settlement.from_user,
+            user=from_user,
             is_settled=False,
-            expense__paid_by=settlement.to_user
+            expense__paid_by=to_user
+        ).order_by('expense__created_at')
+        
+        # Case 2: to_user owes to from_user (from_user paid, to_user has splits)
+        unsettled_splits_case2 = ExpenseSplit.objects.filter(
+            expense__group=group,
+            user=to_user,
+            is_settled=False,
+            expense__paid_by=from_user
         ).order_by('expense__created_at')
         
         remaining_amount = settlement.amount
         
-        for split in unsettled_splits:
+        # First, settle splits where from_user owes to_user
+        for split in unsettled_splits_case1:
             if remaining_amount <= 0:
                 break
             
             if split.amount <= remaining_amount:
-                # Settle this split completely
                 split.is_settled = True
                 split.settled_at = timezone.now()
                 split.save()
                 remaining_amount -= split.amount
             else:
-                # Partially settle this split
+                split.amount -= remaining_amount
+                split.save()
+                remaining_amount = 0
+        
+        # If there's still remaining amount, settle splits where to_user owes to from_user
+        for split in unsettled_splits_case2:
+            if remaining_amount <= 0:
+                break
+            
+            if split.amount <= remaining_amount:
+                split.is_settled = True
+                split.settled_at = timezone.now()
+                split.save()
+                remaining_amount -= split.amount
+            else:
                 split.amount -= remaining_amount
                 split.save()
                 remaining_amount = 0
         
         messages.success(request, f"Settlement of PKR {settlement.amount} from {settlement.from_user.first_name} {settlement.from_user.last_name} has been approved and processed.")
+        
+        # Create notification for settlement approval
+        try:
+            notification = Notification.create_settlement_notification(settlement, 'settle_approved')
+            if notification:
+                send_notification_update(notification.user)
+        except Exception as e:
+            print(f"Error creating settlement approval notification: {e}")
         
     elif response == 'reject':
         settlement.status = 'rejected'
@@ -1415,36 +1682,48 @@ def respond_to_settlement(request, group_id, settlement_id):
         settlement.save()
         
         messages.info(request, f"Settlement request of PKR {settlement.amount} from {settlement.from_user.first_name} {settlement.from_user.last_name} has been rejected.")
+        
+        # Create notification for settlement rejection
+        try:
+            notification = Notification.create_settlement_notification(settlement, 'settle_rejected')
+            if notification:
+                send_notification_update(notification.user)
+        except Exception as e:
+            print(f"Error creating settlement rejection notification: {e}")
     
     return redirect('mainApp:group_detail', group_id=group.id)
 
-# Chart Data Views
 @login_required
 def home_chart_data(request):
     """Get chart data for home page - Group vs Personal expenses"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+    # Support both GET and POST requests
+    if request.method == 'GET':
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+    else:
+        import json
+        data = json.loads(request.body)
+        period_type = data.get('period_type')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # Parse dates for POST requests
+        if period_type == 'day':
+            target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            start_date = end_date = target_date
+        elif period_type == 'month':
+            target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
+            start_date = target_date
+            # Get last day of month
+            if target_date.month == 12:
+                end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
     
-    import json
-    data = json.loads(request.body)
-    period_type = data.get('period_type')
-    start_date = data.get('start_date')
-    end_date = data.get('end_date')
-    
-    # Parse dates
-    if period_type == 'day':
-        target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        start_date = end_date = target_date
-    elif period_type == 'month':
-        target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
-        start_date = target_date
-        # Get last day of month
-        if target_date.month == 12:
-            end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
-        else:
-            end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
-    else:  # range
+    # Parse dates for GET requests
+    if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
     
     # Get personal expenses
@@ -1470,40 +1749,45 @@ def home_chart_data(request):
             if user_split:
                 group_total += float(user_split.amount)
     
+    # Return data in format expected by Chart.js
+    labels = ['Personal Expenses', 'Group Expenses']
+    data = [float(personal_total), group_total]
+    
     return JsonResponse({
-        'success': True,
-        'data': {
-            'labels': ['Personal Expenses', 'Group Expenses'],
-            'values': [float(personal_total), group_total],
-            'total': float(personal_total) + group_total
-        }
+        'labels': labels,
+        'data': data
     })
 
 @login_required
 def personal_chart_data(request):
     """Get chart data for personal expenses by category"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+    # Support both GET and POST requests
+    if request.method == 'GET':
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+    else:
+        import json
+        data = json.loads(request.body)
+        period_type = data.get('period_type')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # Parse dates for POST requests
+        if period_type == 'day':
+            target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            start_date = end_date = target_date
+        elif period_type == 'month':
+            target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
+            start_date = target_date
+            if target_date.month == 12:
+                end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
     
-    import json
-    data = json.loads(request.body)
-    period_type = data.get('period_type')
-    start_date = data.get('start_date')
-    end_date = data.get('end_date')
-    
-    # Parse dates (same logic as home_chart_data)
-    if period_type == 'day':
-        target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        start_date = end_date = target_date
-    elif period_type == 'month':
-        target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
-        start_date = target_date
-        if target_date.month == 12:
-            end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
-        else:
-            end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
-    else:  # range
+    # Parse dates for GET requests
+    if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
     
     # Get expenses by category
@@ -1514,56 +1798,54 @@ def personal_chart_data(request):
     ).values('category__name').annotate(total=Sum('amount')).order_by('-total')
     
     labels = []
-    values = []
-    total = 0
+    data = []
     
     for item in expenses_by_category:
         category_name = item['category__name'] or 'Uncategorized'
         amount = float(item['total'])
         labels.append(category_name)
-        values.append(amount)
-        total += amount
+        data.append(amount)
     
     return JsonResponse({
-        'success': True,
-        'data': {
-            'labels': labels,
-            'values': values,
-            'total': total
-        }
+        'labels': labels,
+        'data': data
     })
 
 @login_required
 def groups_chart_data(request):
     """Get chart data for spending by group"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+    # Support both GET and POST requests
+    if request.method == 'GET':
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+    else:
+        import json
+        data = json.loads(request.body)
+        period_type = data.get('period_type')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # Parse dates for POST requests
+        if period_type == 'day':
+            target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            start_date = end_date = target_date
+        elif period_type == 'month':
+            target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
+            start_date = target_date
+            if target_date.month == 12:
+                end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
     
-    import json
-    data = json.loads(request.body)
-    period_type = data.get('period_type')
-    start_date = data.get('start_date')
-    end_date = data.get('end_date')
-    
-    # Parse dates (same logic as above)
-    if period_type == 'day':
-        target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        start_date = end_date = target_date
-    elif period_type == 'month':
-        target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
-        start_date = target_date
-        if target_date.month == 12:
-            end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
-        else:
-            end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
-    else:  # range
+    # Parse dates for GET requests
+    if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
     
     # Get user's groups and their spending
     user_groups = request.user.expense_groups.all()
     group_data = []
-    total = 0
     
     for group in user_groups:
         group_expenses = GroupExpense.objects.filter(
@@ -1583,64 +1865,60 @@ def groups_chart_data(request):
                 'name': group.name,
                 'amount': group_total
             })
-            total += group_total
     
     # Sort by amount descending
     group_data.sort(key=lambda x: x['amount'], reverse=True)
     
     labels = [item['name'] for item in group_data]
-    values = [item['amount'] for item in group_data]
+    data = [item['amount'] for item in group_data]
     
     return JsonResponse({
-        'success': True,
-        'data': {
-            'labels': labels,
-            'values': values,
-            'total': total
-        }
+        'labels': labels,
+        'data': data
     })
 
 @login_required
 def group_detail_chart_data(request, group_id):
     """Get chart data for specific group - user's spending by category"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
-    
     group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
     
-    import json
-    data = json.loads(request.body)
-    period_type = data.get('period_type')
-    start_date = data.get('start_date')
-    end_date = data.get('end_date')
+    # Support both GET and POST requests
+    if request.method == 'GET':
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+    else:
+        import json
+        data = json.loads(request.body)
+        period_type = data.get('period_type')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # Parse dates for POST requests
+        if period_type == 'day':
+            target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            start_date = end_date = target_date
+        elif period_type == 'month':
+            target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
+            start_date = target_date
+            if target_date.month == 12:
+                end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
     
-    # Parse dates (same logic as above)
-    if period_type == 'day':
-        target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        start_date = end_date = target_date
-    elif period_type == 'month':
-        target_date = datetime.strptime(start_date, '%Y-%m').date().replace(day=1)
-        start_date = target_date
-        if target_date.month == 12:
-            end_date = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
-        else:
-            end_date = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
-    else:  # range
+    # Parse dates for GET requests
+    if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
     
-    # Get group's total spending
+    # Get user's spending by category in this group
     group_expenses = GroupExpense.objects.filter(
         group=group,
         date__gte=start_date,
         date__lte=end_date
     )
     
-    group_total_spent = sum(float(expense.amount) for expense in group_expenses)
-    
-    # Get user's spending by category in this group
     user_spending_by_category = {}
-    user_total_spent = 0
     
     for expense in group_expenses:
         user_split = expense.splits.filter(user=request.user).first()
@@ -1651,23 +1929,16 @@ def group_detail_chart_data(request, group_id):
             if category_name not in user_spending_by_category:
                 user_spending_by_category[category_name] = 0
             user_spending_by_category[category_name] += amount
-            user_total_spent += amount
     
     # Sort by amount
     sorted_categories = sorted(user_spending_by_category.items(), key=lambda x: x[1], reverse=True)
     
     labels = [item[0] for item in sorted_categories]
-    values = [item[1] for item in sorted_categories]
+    data = [item[1] for item in sorted_categories]
     
     return JsonResponse({
-        'success': True,
-        'data': {
-            'labels': labels,
-            'values': values,
-            'user_total': user_total_spent,
-            'group_total': group_total_spent,
-            'user_percentage': (user_total_spent / group_total_spent * 100) if group_total_spent > 0 else 0
-        }
+        'labels': labels,
+        'data': data
     })
 
 
@@ -1694,7 +1965,7 @@ def get_unread_messages_count(request, group_id):
                 group=group
             )
         
-        # Get messages since user joined that haven't been read
+        # Get messages from join date onwards that haven't been read
         unread_messages = ChatMessage.objects.filter(
             group=group,
             timestamp__gte=membership.joined_at,
@@ -1715,3 +1986,289 @@ def get_unread_messages_count(request, group_id):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def group_chat(request, group_id):
+    """Separate page for group chat"""
+    group = get_object_or_404(Group, id=group_id)
+    
+    # Check if user is member of this group
+    if not group.members.filter(id=request.user.id).exists():
+        messages.error(request, "You don't have access to this group.")
+        return redirect('mainApp:groups')
+    
+    # Get or create membership record
+    membership, created = GroupMembership.objects.get_or_create(
+        user=request.user,
+        group=group
+    )
+    
+    # Get recent messages from join date onwards
+    recent_messages = ChatMessage.objects.filter(
+        group=group,
+        timestamp__gte=membership.joined_at,
+        is_deleted=False
+    ).select_related('sender').order_by('-timestamp')[:50]
+    
+    context = {
+        'group': group,
+        'recent_messages': reversed(recent_messages),
+        'membership': membership,
+    }
+    
+    return render(request, 'mainApp/group_chat.html', context)
+
+
+@login_required
+def charts_page(request, chart_type, group_id=None):
+    """Separate page for charts"""
+    context = {
+        'chart_type': chart_type,
+    }
+    
+    if chart_type == 'home':
+        context['page_title'] = 'Home Expense Charts'
+        context['chart_title'] = 'Personal vs Group Expenses'
+    elif chart_type == 'personal':
+        context['page_title'] = 'Personal Expense Charts'
+        context['chart_title'] = 'Personal Expenses by Category'
+    elif chart_type == 'groups':
+        context['page_title'] = 'Groups Expense Charts'
+        context['chart_title'] = 'Expenses by Group'
+    elif chart_type == 'group_detail' and group_id:
+        group = get_object_or_404(Group, id=group_id)
+        if not group.members.filter(id=request.user.id).exists():
+            messages.error(request, "You don't have access to this group.")
+            return redirect('mainApp:groups')
+        context['group'] = group
+        context['page_title'] = f'{group.name} - Charts'
+        context['chart_title'] = f'Your Expenses in {group.name}'
+    else:
+        messages.error(request, "Invalid chart type.")
+        return redirect('mainApp:home')
+    
+    return render(request, 'mainApp/charts_page.html', context)
+
+
+@login_required
+def edit_chat_message(request, group_id, message_id):
+    """Edit a chat message"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    
+    group = get_object_or_404(Group, id=group_id)
+    message = get_object_or_404(ChatMessage, id=message_id, group=group)
+    
+    # Check if user is member and can edit
+    if not group.members.filter(id=request.user.id).exists():
+        return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
+    
+    if not message.can_edit(request.user):
+        return JsonResponse({'success': False, 'error': 'Cannot edit this message'}, status=403)
+    
+    new_content = request.POST.get('content', '').strip()
+    if not new_content:
+        return JsonResponse({'success': False, 'error': 'Message cannot be empty'}, status=400)
+    
+    if message.message_type != 'text':
+        return JsonResponse({'success': False, 'error': 'Cannot edit image messages'}, status=400)
+    
+    message.content = new_content
+    message.edited_at = timezone.now()
+    message.save()
+    
+    return JsonResponse({
+        'success': True,
+        'message': {
+            'id': message.id,
+            'content': message.content,
+            'edited_at': message.edited_at.isoformat() if message.edited_at else None
+        }
+    })
+
+
+@login_required
+def delete_chat_message(request, group_id, message_id):
+    """Delete a chat message"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    
+    group = get_object_or_404(Group, id=group_id)
+    message = get_object_or_404(ChatMessage, id=message_id, group=group)
+    
+    # Check if user is member and can delete
+    if not group.members.filter(id=request.user.id).exists():
+        return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
+    
+    if not message.can_delete(request.user):
+        return JsonResponse({'success': False, 'error': 'Cannot delete this message'}, status=403)
+    
+    message.soft_delete()
+    
+    return JsonResponse({'success': True, 'message_id': message.id})
+
+
+@login_required
+def send_image_message(request, group_id):
+    """Send an image message"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    
+    group = get_object_or_404(Group, id=group_id)
+    
+    # Check if user is member
+    if not group.members.filter(id=request.user.id).exists():
+        return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
+    
+    if 'image' not in request.FILES:
+        return JsonResponse({'success': False, 'error': 'No image provided'}, status=400)
+    
+    image_file = request.FILES['image']
+    
+    # Validate image size (max 5MB)
+    if image_file.size > 5 * 1024 * 1024:
+        return JsonResponse({'success': False, 'error': 'Image too large (max 5MB)'}, status=400)
+    
+    # Validate image type
+    allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if image_file.content_type not in allowed_types:
+        return JsonResponse({'success': False, 'error': 'Invalid image type'}, status=400)
+    
+    # Create the message
+    message = ChatMessage.objects.create(
+        group=group,
+        sender=request.user,
+        message_type='image',
+        image=image_file
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'message': {
+            'id': message.id,
+            'sender_name': message.get_sender_name(),
+            'message_type': message.message_type,
+            'image_url': message.image.url if message.image else None,
+            'timestamp': message.timestamp.isoformat(),
+            'is_own': message.sender == request.user
+        }
+    })
+
+
+@login_required
+def download_chat_image(request, group_id, message_id):
+    """Download a chat image"""
+    group = get_object_or_404(Group, id=group_id)
+    message = get_object_or_404(ChatMessage, id=message_id, group=group, message_type='image')
+    
+    # Check if user is member
+    if not group.members.filter(id=request.user.id).exists():
+        return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
+    
+    if not message.image:
+        return JsonResponse({'success': False, 'error': 'Image not found'}, status=404)
+    
+    from django.http import HttpResponse
+    from django.utils.encoding import smart_str
+    import os
+    
+    response = HttpResponse(message.image.read(), content_type='application/octet-stream')
+    filename = os.path.basename(message.image.name)
+    response['Content-Disposition'] = f'attachment; filename="{smart_str(filename)}"'
+    return response
+
+
+# ============== NOTIFICATION VIEWS ==============
+
+@login_required
+def notifications_page(request):
+    """Display notifications page"""
+    notifications = Notification.objects.filter(user=request.user)[:50]
+    
+    context = {
+        'notifications': notifications
+    }
+    return render(request, 'mainApp/notifications.html', context)
+
+
+@login_required
+def notifications_api(request):
+    """API endpoint to get user's notifications"""
+    try:
+        notifications = Notification.objects.filter(user=request.user)[:20]
+        unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
+        
+        notification_data = []
+        for notification in notifications:
+            notification_data.append({
+                'id': notification.id,
+                'title': notification.title,
+                'message': notification.message,
+                'is_read': notification.is_read,
+                'time_ago': timesince(notification.created_at),
+                'notification_type': notification.notification_type,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'notifications': notification_data,
+            'unread_count': min(unread_count, 99)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def mark_notification_read(request, notification_id):
+    """Mark a specific notification as read"""
+    if request.method == 'POST':
+        try:
+            notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+            notification.mark_as_read()
+            
+            return JsonResponse({'success': True})
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+
+@login_required
+def mark_all_notifications_read(request):
+    """Mark all notifications as read for the current user"""
+    if request.method == 'POST':
+        try:
+            Notification.objects.filter(user=request.user, is_read=False).update(
+                is_read=True,
+                read_at=timezone.now()
+            )
+            
+            return JsonResponse({'success': True})
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+
+def send_notification_update(user):
+    """Send notification count update via WebSocket"""
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    
+    try:
+        channel_layer = get_channel_layer()
+        unread_count = Notification.objects.filter(user=user, is_read=False).count()
+        
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user.id}",
+            {
+                'type': 'notification_update',
+                'unread_count': min(unread_count, 99)
+            }
+        )
+    except Exception as e:
+        print(f"Error sending notification update: {e}")

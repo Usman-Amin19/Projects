@@ -34,9 +34,9 @@
                                            class="form-control" 
                                            id="amount" 
                                            name="amount" 
-                                           min="0.01" 
+                                           min="1" 
                                            max="{{ max_amount }}" 
-                                           step="0.01" 
+                                           step="1" 
                                            placeholder="Enter amount"
                                            required>
                                 </div>
@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const settleAmount = parseFloat(amountInput.value) || 0;
         const remaining = maxAmount - settleAmount;
         
-        remainingSpan.textContent = remaining.toFixed(2);
+        remainingSpan.textContent = Math.round(remaining);
         
         // Update button state
         if (settleAmount <= 0 || settleAmount > maxAmount) {

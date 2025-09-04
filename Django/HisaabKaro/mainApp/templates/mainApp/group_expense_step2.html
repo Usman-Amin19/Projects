@@ -3,114 +3,6 @@
 
 {% block title %}Add Group Expense - Step 2{% endblock %}
 
-{% block extra_css %}
-<style>
-    .step-indicator {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 2rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .step {
-        text-align: center;
-        color: white;
-        flex: 1;
-        position: relative;
-    }
-
-    .step.active {
-        font-weight: bold;
-    }
-
-    .step.active::after {
-        content: '';
-        position: absolute;
-        bottom: -5px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 20px;
-        height: 3px;
-        background-color: #ffd700;
-        border-radius: 2px;
-    }
-
-    .step.completed {
-        color: #ffd700;
-    }
-
-    .form-card {
-        background: white;
-        border-radius: 15px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-        padding: 2rem;
-        margin: 1rem 0;
-        border: 1px solid #e0e0e0;
-    }
-
-    .participant-card {
-        border: 2px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        transition: all 0.3s ease;
-        background: white;
-        cursor: pointer;
-    }
-
-    .participant-card:hover {
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .participant-card.selected {
-        border-color: #007bff;
-        background-color: #f8f9ff;
-    }
-
-    .participant-card.required {
-        border-color: #28a745;
-        background-color: #f8fff9;
-        cursor: default;
-    }
-
-    .required-badge {
-        background-color: #28a745;
-        color: white;
-        padding: 0.2rem 0.5rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: bold;
-    }
-
-    .btn-gradient {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        color: white;
-        padding: 0.75rem 1.5rem;
-        border-radius: 25px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .btn-gradient:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-        color: white;
-    }
-
-    .progress-info {
-        background: #f8f9fa;
-        border-left: 4px solid #007bff;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0 8px 8px 0;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="container mt-4">
     <div class="row justify-content-center">
@@ -175,7 +67,7 @@
                             </div>
                             <div class="required-badge">Required</div>
                         </div>
-                        <input type="hidden" name="participants" value="{{ request.user.id }}">
+                        <input type="hidden" name="participants" value="{{ request.user.id }}" class="required-participant">
                     </div>
 
                     <!-- Other group members -->
@@ -194,7 +86,7 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <input type="checkbox" name="participants" value="{{ member.id }}" 
+                                    <input type="checkbox" name="participants" value="{{ member.id }}" class="other-participant"
                                            {% if member.id|stringformat:"s" in expense_data.participant_ids %}checked{% endif %}
                                            onclick="event.stopPropagation();">
                                 </div>
@@ -232,20 +124,19 @@ function toggleParticipant(card) {
 }
 
 function updateNextButton() {
-    const checkedBoxes = document.querySelectorAll('input[name="participants"]:checked');
+    // Count only checkboxes for other participants (exclude the required current user)
+    const otherParticipantBoxes = document.querySelectorAll('input.other-participant:checked');
     const nextBtn = document.getElementById('participantNextBtn');
     
-    // Need at least 2 total (current user + 1 more)
-    if (checkedBoxes.length >= 2) {
+    // Need at least 1 other participant (current user is always included via hidden input)
+    if (otherParticipantBoxes.length >= 1) {
         nextBtn.disabled = false;
         nextBtn.innerHTML = 'Next <i class="fas fa-arrow-right"></i>';
-        nextBtn.classList.remove('btn-warning');
-        nextBtn.classList.add('btn-gradient');
+        nextBtn.className = 'btn btn-gradient';
     } else {
         nextBtn.disabled = true;
         nextBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Need at least 1 more participant';
-        nextBtn.classList.add('btn-warning');
-        nextBtn.classList.remove('btn-gradient');
+        nextBtn.className = 'btn btn-warning';
     }
 }
 

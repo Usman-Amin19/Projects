@@ -5,10 +5,10 @@
 {% csrf_token %}
 <!-- Charts Button -->
 {% if user.is_authenticated %}
-<button class="charts-button" onclick="openChartModal('home')">
+<a href="{% url 'mainApp:charts_page' 'home' %}" class="charts-button">
     <i class="fas fa-chart-pie"></i>
     <span>Show Graphs</span>
-</button>
+</a>
 {% endif %}
 
 <div class="container mt-4">
@@ -37,7 +37,7 @@
                                     <div class="mt-auto">
                                         <small class="text-muted">
                                             <i class="fas fa-chart-line me-1"></i>
-                                            {{ personal_count }} expense{{ personal_count|pluralize }} totaling ${{ personal_total|floatformat:2 }}
+                                            {{ personal_count }} expense{{ personal_count|pluralize }} totaling PKR {{ personal_total|floatformat:0 }}
                                         </small>
                                     </div>
                                 {% else %}
@@ -82,27 +82,6 @@
                         </div>
                     </div>
                 </div>
-                <!--
-                Recent Activity (if any)
-                {% if recent_group_expenses %}
-                    <div class="row mt-5">
-                        <div class="col-12">
-                            <h3 class="mb-3">Recent Group Activity</h3>
-                            <div class="list-group">
-                                {% for expense in recent_group_expenses %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <h6 class="mb-1">{{ expense.description }}</h6>
-                                            <small class="text-muted">{{ expense.group.name }} • Paid by {{ expense.paid_by.get_full_name|default:expense.paid_by.username }}</small>
-                                        </div>
-                                        <span class="badge bg-primary rounded-pill">${{ expense.amount }}</span>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                {% endif %}
-                -->
 
             {% else %}
                 <!-- Non-authenticated User Content -->
@@ -158,52 +137,4 @@
     </div>
 </div>
 
-<!-- Chart Modal -->
-{% if user.is_authenticated %}
-<div class="chart-modal" id="chartModal">
-    <div class="chart-modal-content">
-        <div class="chart-modal-header">
-            <h5>Expense Analysis</h5>
-            <button class="chart-close" onclick="closeChartModal()">&times;</button>
-        </div>
-        <div class="chart-modal-body">
-            <div class="chart-options">
-                <div class="chart-option" data-type="day">
-                    <i class="fas fa-calendar-day"></i>
-                    <span>Single Day</span>
-                </div>
-                <div class="chart-option" data-type="month">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Single Month</span>
-                </div>
-                <div class="chart-option" data-type="range">
-                    <i class="fas fa-calendar-week"></i>
-                    <span>Date Range</span>
-                </div>
-            </div>
-            
-            <div class="date-inputs" id="dateInputs">
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="startDate">Start Date:</label>
-                        <input type="date" class="form-control" id="startDate">
-                    </div>
-                    <div class="col-md-6" id="endDateCol">
-                        <label for="endDate">End Date:</label>
-                        <input type="date" class="form-control" id="endDate">
-                    </div>
-                </div>
-                <button class="chart-generate-btn" onclick="generateChart()">Generate Chart</button>
-            </div>
-            
-            <div class="chart-container" id="chartContainer">
-                <canvas id="expenseChart" class="chart-canvas"></canvas>
-                <div class="chart-stats" id="chartStats">
-                    <!-- Stats will be populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 {% endblock %}

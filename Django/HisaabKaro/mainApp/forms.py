@@ -13,7 +13,7 @@ class CustomUserRegistrationForm(forms.ModelForm):
         'class': 'form-control'
     }))
     last_name = forms.CharField(required=False, widget=forms.TextInput(attrs={
-        'placeholder': 'Last Name',
+        'placeholder': 'Last Name(Optional)',
         'class': 'form-control'
     }))
     email = forms.EmailField(widget=forms.EmailInput(attrs={
@@ -39,39 +39,6 @@ class CustomUserRegistrationForm(forms.ModelForm):
             raise forms.ValidationError("An account with this \
                 email already exists.")
         return email
-
-    def clean_first_name(self):
-        first_name = self.cleaned_data.get('first_name')
-        if not first_name:
-            raise forms.ValidationError("First name is required.")
-        
-        # Check for emojis using Unicode ranges
-        emoji_pattern = re.compile(
-            "["
-            "\U0001F600-\U0001F64F"  # emoticons
-            "\U0001F300-\U0001F5FF"  # symbols & pictographs
-            "\U0001F680-\U0001F6FF"  # transport & map symbols
-            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-            "\U00002500-\U00002BEF"  # chinese char
-            "\U00002702-\U000027B0"
-            "\U00002702-\U000027B0"
-            "\U000024C2-\U0001F251"
-            "\U0001f926-\U0001f937"
-            "\U00010000-\U0010ffff"
-            "\u2640-\u2642" 
-            "\u2600-\u2B55"
-            "\u200d"
-            "\u23cf"
-            "\u23e9"
-            "\u231a"
-            "\ufe0f"  # dingbats
-            "\u3030"
-            "]+", re.UNICODE)
-        
-        if emoji_pattern.search(first_name):
-            raise forms.ValidationError("First name cannot contain emojis or special symbols.")
-        
-        return first_name
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
@@ -187,4 +154,78 @@ class CustomSetPasswordForm(SetPasswordForm):
             raise forms.ValidationError("Password must contain at \
                 least one special character.")
         return password
+    
+    def clean(self):
+        new_password1 = self.cleaned_data.get('new_password1')
+        new_password2 = self.cleaned_data.get('new_password2')
+
+        if new_password1 and new_password2 and new_password1 != new_password2:
+            raise forms.ValidationError("The two password fields didn't match.")
+
+        return self.cleaned_data
+
+class CustomChangePasswordForm(forms.Form):
+    current_password = forms.CharField(
+        label="Current Password",
+        widget=forms.PasswordInput(attrs={
+            'placeholder': 'Current Password',
+            'class': 'form-control'
+        })
+    )
+    new_password1 = forms.CharField(
+        label="New Password",
+        widget=forms.PasswordInput(attrs={
+            'placeholder': 'New Password',
+            'class': 'form-control'
+        })
+    )
+    new_password2 = forms.CharField(
+        label="Confirm New Password",
+        widget=forms.PasswordInput(attrs={
+            'placeholder': 'Confirm New Password',
+            'class': 'form-control'
+        })
+    )
+
+    def __init__(self, user, *args, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_current_password(self):
+        current_password = self.cleaned_data.get('current_password')
+        if not self.user.check_password(current_password):
+            raise forms.ValidationError("Current password is incorrect.")
+        return current_password
+
+    def clean_new_password1(self):
+        password = self.cleaned_data.get('new_password1')
+        if not password:
+            raise forms.ValidationError("Password is required.")
+        if len(password) < 8:
+            raise forms.ValidationError("Password must be at least 8 characters long.")
+        elif not re.search(r'[A-Z]', password):
+            raise forms.ValidationError("Password must contain at least one uppercase letter.")
+        elif not re.search(r'[a-z]', password):
+            raise forms.ValidationError("Password must contain at least one lowercase letter.")
+        elif not re.search(r'[0-9]', password):
+            raise forms.ValidationError("Password must contain at least one digit.")
+        elif not re.search(r'[^A-Za-z0-9]', password):
+            raise forms.ValidationError("Password must contain at least one special character.")
+        return password
+
+    def clean(self):
+        cleaned_data = super().clean()
+        new_password1 = cleaned_data.get('new_password1')
+        new_password2 = cleaned_data.get('new_password2')
+        
+        if new_password1 and new_password2 and new_password1 != new_password2:
+            raise forms.ValidationError("The two password fields didn't match.")
+        
+        return cleaned_data
+
+    def save(self):
+        password = self.cleaned_data['new_password1']
+        self.user.set_password(password)
+        self.user.save()
+        return self.user
     

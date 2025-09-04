@@ -1,0 +1,249 @@
+{% extends 'mainApp/base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>{{ chart_title }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Chart Controls -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label for="timePeriod" class="form-label">Time Period:</label>
+                            <select id="timePeriod" class="form-select">
+                                <option value="last_week">Last Week</option>
+                                <option value="last_month" selected>Last Month</option>
+                                <option value="last_year">Last Year</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="startDate" class="form-label">Start Date:</label>
+                            <input type="date" id="startDate" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="endDate" class="form-label">End Date:</label>
+                            <input type="date" id="endDate" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <!-- Refresh Button -->
+                    <div class="mb-4">
+                        <div class="chart-action-buttons">
+                            <button id="refreshChart" class="btn btn-success chart-btn">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh Chart
+                            </button>
+                            <button onclick="history.back()" class="btn btn-secondary chart-btn">
+                                <i class="fas fa-arrow-left me-2"></i>Go Back
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Container -->
+                    <div id="chartContainer" style="height: 500px;">
+                        <canvas id="expenseChart"></canvas>
+                    </div>
+                    
+                    <!-- No Data Message (hidden by default) -->
+                    <div id="noDataMessage" class="text-center mt-4" style="display: none;">
+                        <div class="alert alert-info">
+                            <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                            <h5>No Data Available</h5>
+                            <p>No expense data found for the selected time period.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let chartInstance = null;
+let currentChartType = '{{ chart_type }}';
+{% if group %}
+let groupId = {{ group.id }};
+{% endif %}
+
+// Chart configuration based on page type
+function getChartConfig() {
+    const configs = {
+        'home': {
+            url: '{% url "mainApp:home_chart_data" %}',
+            type: 'pie',
+            label: 'Amount (PKR)'
+        },
+        'personal': {
+            url: '{% url "mainApp:personal_chart_data" %}',
+            type: 'pie',
+            label: 'Amount (PKR)'
+        },
+        'groups': {
+            url: '{% url "mainApp:groups_chart_data" %}',
+            type: 'pie',
+            label: 'Amount (PKR)'
+        },
+        'group_detail': {
+            url: '{% if group %}{% url "mainApp:group_detail_chart_data" group.id %}{% endif %}',
+            type: 'pie',
+            label: 'Amount (PKR)'
+        }
+    };
+    return configs[currentChartType];
+}
+
+// Initialize date inputs
+function initializeDates() {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(endDate.getMonth() - 1);
+    
+    document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+}
+
+// Update dates based on time period selection
+function updateDatesFromPeriod() {
+    const period = document.getElementById('timePeriod').value;
+    const endDate = new Date();
+    const startDate = new Date();
+    
+    switch(period) {
+        case 'last_week':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+        case 'last_month':
+            startDate.setMonth(endDate.getMonth() - 1);
+            break;
+        case 'last_year':
+            startDate.setFullYear(endDate.getFullYear() - 1);
+            break;
+    }
+    
+    document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+}
+
+// Load chart data
+async function loadChart() {
+    const config = getChartConfig();
+    if (!config) {
+        console.error('Invalid chart type:', currentChartType);
+        return;
+    }
+    
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    const url = new URL(config.url, window.location.origin);
+    url.searchParams.append('start_date', startDate);
+    url.searchParams.append('end_date', endDate);
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        // Check if data is empty
+        if (!data.labels || data.labels.length === 0 || 
+            !data.data || data.data.every(value => value === 0)) {
+            showNoDataMessage();
+            return;
+        }
+        
+        // Hide no data message and show chart
+        hideNoDataMessage();
+        
+        // Clear previous chart
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+        
+        // Create new chart
+        const ctx = document.getElementById('expenseChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: config.type,
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: config.label,
+                    data: data.data,
+                    backgroundColor: [
+                        '#FF6384',
+                        '#36A2EB',
+                        '#FFCE56',
+                        '#4BC0C0',
+                        '#9966FF',
+                        '#FF9F40',
+                        '#FF6384',
+                        '#C9CBCF'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': PKR ' + context.parsed.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error loading chart data:', error);
+        showNoDataMessage();
+    }
+}
+
+// Show/hide no data message
+function showNoDataMessage() {
+    document.getElementById('chartContainer').style.display = 'none';
+    document.getElementById('noDataMessage').style.display = 'block';
+    if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+    }
+}
+
+function hideNoDataMessage() {
+    document.getElementById('chartContainer').style.display = 'block';
+    document.getElementById('noDataMessage').style.display = 'none';
+}
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDates();
+    loadChart();
+    
+    // Time period change
+    document.getElementById('timePeriod').addEventListener('change', function() {
+        updateDatesFromPeriod();
+        loadChart();
+    });
+    
+    // Date changes
+    document.getElementById('startDate').addEventListener('change', loadChart);
+    document.getElementById('endDate').addEventListener('change', loadChart);
+    
+    // Refresh button
+    document.getElementById('refreshChart').addEventListener('click', loadChart);
+});
+</script>
+{% endblock %}

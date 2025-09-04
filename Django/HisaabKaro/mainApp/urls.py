@@ -6,6 +6,10 @@ app_name = 'mainApp'
 
 urlpatterns = [
     path('profile/', views.profile_page, name='profile'),
+    path('profile/edit/', views.edit_profile, name='edit_profile'),
+    path('profile/change-password/', views.change_password, name='change_password'),
+    path('profile/check-pending-dues/', views.check_pending_dues, name='check_pending_dues'),
+    path('profile/delete-account/', views.delete_account, name='delete_account'),
 
     # Authentication URLs
     path('login/', views.login_page, name='login'),
@@ -31,6 +35,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('groups/', views.groups, name='groups'),
     path('groups/<int:group_id>/', views.group_detail, name='group_detail'),
+    path('groups/<int:group_id>/expenses/<int:expense_id>/', views.expense_detail, name='expense_detail'),
     path('groups/create/', views.create_group, name='create_group'),
     path('groups/join/', views.join_group_form, name='join_group_form'),
     
@@ -63,7 +68,22 @@ urlpatterns = [
     path('charts/group/<int:group_id>/data/', views.group_detail_chart_data, name='group_detail_chart_data'),
     
     # Chat URLs
+    path('groups/<int:group_id>/chat/', views.group_chat, name='group_chat'),
     path('groups/<int:group_id>/unread-messages/', views.get_unread_messages_count, name='get_unread_messages_count'),
+    path('groups/<int:group_id>/chat/message/<int:message_id>/edit/', views.edit_chat_message, name='edit_chat_message'),
+    path('groups/<int:group_id>/chat/message/<int:message_id>/delete/', views.delete_chat_message, name='delete_chat_message'),
+    path('groups/<int:group_id>/chat/send-image/', views.send_image_message, name='send_image_message'),
+    path('groups/<int:group_id>/chat/message/<int:message_id>/download/', views.download_chat_image, name='download_chat_image'),
+    
+    # Charts pages
+    path('charts/<str:chart_type>/', views.charts_page, name='charts_page'),
+    path('charts/group_detail/<int:group_id>/', views.charts_page, {'chart_type': 'group_detail'}, name='group_charts'),
+    
+    # Notification URLs
+    path('notifications/', views.notifications_page, name='notifications'),
+    path('notifications/api/', views.notifications_api, name='notifications_api'),
+    path('notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark_notification_read'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
     
     path('groups/<int:group_id>/expenses/<int:expense_id>/delete/', views.delete_group_expense, name='delete_group_expense'),
     path('groups/<int:group_id>/expenses/<int:expense_id>/history/', views.expense_history, name='expense_history'),

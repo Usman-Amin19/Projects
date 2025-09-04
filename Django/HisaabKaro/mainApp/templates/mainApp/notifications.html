@@ -1,0 +1,187 @@
+{% extends 'mainApp/base.html' %}
+{% load static %}
+
+{% block title %}Notifications - HisaabKaro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4><i class="fas fa-bell"></i> Notifications</h4>
+                    <button class="btn btn-sm btn-outline-primary" onclick="markAllRead()" id="markAllBtn">
+                        <i class="fas fa-check-double"></i> Mark All Read
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    {% if notifications %}
+                        <div class="list-group list-group-flush">
+                            {% for notification in notifications %}
+                                <div class="list-group-item notification-item-page {% if not notification.is_read %}unread{% endif %}" 
+                                     data-notification-id="{{ notification.id }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 fw-bold">{{ notification.title }}</h6>
+                                            <p class="mb-1">{{ notification.message }}</p>
+                                            <small class="text-muted">
+                                                <i class="fas fa-clock"></i>
+                                                {{ notification.created_at|timesince }} ago
+                                                {% if notification.group %}
+                                                    • <i class="fas fa-users"></i> {{ notification.group.name }}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="notification-actions">
+                                            {% if not notification.is_read %}
+                                                <button class="btn btn-sm btn-outline-primary" 
+                                                        onclick="markAsRead({{ notification.id }})"
+                                                        title="Mark as read">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            {% endif %}
+                                            {% if notification.group %}
+                                                <a href="{% url 'mainApp:group_detail' notification.group.id %}" 
+                                                   class="btn btn-sm btn-outline-secondary"
+                                                   title="View Group">
+                                                    <i class="fas fa-external-link-alt"></i>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No notifications yet</h5>
+                            <p class="text-muted">You'll see notifications here when there are updates about your expenses and groups.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function markAsRead(notificationId) {
+    fetch(`/notifications/${notificationId}/read/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove unread styling
+            const item = document.querySelector(`[data-notification-id="${notificationId}"]`);
+            if (item) {
+                item.classList.remove('unread');
+                // Remove the mark as read button
+                const btn = item.querySelector('.btn-outline-primary');
+                if (btn && btn.getAttribute('onclick').includes('markAsRead')) {
+                    btn.remove();
+                }
+            }
+            
+            // Update the main notification badge
+            if (typeof updateNotificationBadge === 'function') {
+                // This function is defined in base.html
+                const unreadItems = document.querySelectorAll('.notification-item-page.unread').length;
+                updateNotificationBadge(unreadItems);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error marking notification as read:', error);
+    });
+}
+
+function markAllRead() {
+    fetch('/notifications/mark-all-read/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove unread styling from all items
+            document.querySelectorAll('.notification-item-page.unread').forEach(item => {
+                item.classList.remove('unread');
+                // Remove mark as read buttons
+                const btn = item.querySelector('.btn-outline-primary');
+                if (btn && btn.getAttribute('onclick') && btn.getAttribute('onclick').includes('markAsRead')) {
+                    btn.remove();
+                }
+            });
+            
+            // Hide the "Mark All Read" button
+            const markAllBtn = document.getElementById('markAllBtn');
+            if (markAllBtn) {
+                markAllBtn.style.display = 'none';
+            }
+            
+            // Update the main notification badge
+            if (typeof updateNotificationBadge === 'function') {
+                updateNotificationBadge(0);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error marking all notifications as read:', error);
+    });
+}
+
+// Hide "Mark All Read" button if no unread notifications
+document.addEventListener('DOMContentLoaded', function() {
+    const unreadCount = document.querySelectorAll('.notification-item-page.unread').length;
+    const markAllBtn = document.getElementById('markAllBtn');
+    if (markAllBtn && unreadCount === 0) {
+        markAllBtn.style.display = 'none';
+    }
+});
+</script>
+
+<style>
+.notification-item-page {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.notification-item-page:hover {
+    background-color: var(--bs-light);
+}
+
+.notification-item-page.unread {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+}
+
+body.dark-mode .notification-item-page {
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+}
+
+body.dark-mode .notification-item-page:hover {
+    background-color: #495057;
+}
+
+body.dark-mode .notification-item-page.unread {
+    background-color: #2c5aa0;
+    border-left-color: #3182ce;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+</style>
+{% endblock %}

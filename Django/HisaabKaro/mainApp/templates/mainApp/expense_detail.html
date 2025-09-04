@@ -1,0 +1,215 @@
+{% extends 'mainApp/base.html' %}
+{% load static %}
+
+{% block title %}{{ expense.title }} - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <h2 class="text-primary mb-0">{{ expense.title }}</h2>
+
+            <!-- Expense Overview Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-receipt text-primary me-2"></i>Expense Overview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="expense-detail-item">
+                                <strong>Amount:</strong> PKR {{ expense.amount }}
+                            </div>
+                            <div class="expense-detail-item">
+                                <strong>Date:</strong> {{ expense.date|date:"F d, Y" }}
+                            </div>
+                            <div class="expense-detail-item">
+                                <strong>Paid by:</strong> {{ expense.paid_by.first_name }} {{ expense.paid_by.last_name }}
+                            </div>
+                            <div class="expense-detail-item">
+                                <strong>Split Type:</strong> 
+                                <span class="badge bg-info">{{ expense.get_split_type_display }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            {% if expense.category %}
+                            <div class="expense-detail-item">
+                                <strong>Category:</strong> 
+                                <span class="category-tag">{{ expense.category.name }}</span>
+                            </div>
+                            {% endif %}
+                            {% if expense.description %}
+                            <div class="expense-detail-item">
+                                <strong>Description:</strong> {{ expense.description }}
+                            </div>
+                            {% endif %}
+                            <div class="expense-detail-item">
+                                <strong>Created by:</strong> {{ expense.created_by.first_name }} {{ expense.created_by.last_name }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Participants and Contributions -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users text-primary me-2"></i>Participants & Contributions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for item in splits_with_net %}
+                        {% with split=item.split %}
+                        <div class="col-md-6 mb-3">
+                            <div class="participant-detail-card">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            <i class="fas fa-user-circle fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-0">{{ split.user.first_name }} {{ split.user.last_name }}</h6>
+                                            <small class="text-muted">{{ split.user.email }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="contribution-info mt-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>Contributed:</strong></span>
+                                        <span class="text-success">PKR {{ split.contribution }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>Should Pay:</strong></span>
+                                        <span class="text-primary">PKR {{ split.amount }}</span>
+                                    </div>
+                                    {% if expense.split_type == 'percentage' %}
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>Percentage:</strong></span>
+                                        <span class="text-info">{{ split.percentage }}%</span>
+                                    </div>
+                                    {% endif %}
+                                    <hr class="my-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>Net Balance:</strong></span>
+                                        {% if item.net_positive %}
+                                            <span class="text-success">+PKR {{ item.net_balance|floatformat:0 }}</span>
+                                        {% elif item.net_negative %}
+                                            <span class="text-danger">-PKR {{ item.net_balance|floatformat:0|cut:'-' }}</span>
+                                        {% else %}
+                                            <span class="text-muted">PKR 0</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expense History Section -->
+            {% if history %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Activity</h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleExpenseHistory()">
+                        <i class="fas fa-history"></i> Show History
+                    </button>
+                </div>
+                <div class="card-body hidden" id="historySection">
+                    {% for entry in history %}
+                    <div class="history-entry mb-2 pb-2 border-bottom">
+                        <div class="d-flex justify-content-between">
+                            <span>{{ entry.description }}</span>
+                            <small class="text-muted">{{ entry.timestamp|date:"M d, Y H:i" }}</small>
+                        </div>
+                        <small class="text-muted">by {{ entry.performed_by.first_name }} {{ entry.performed_by.last_name }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            {% if user in expense.participants.all %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs text-primary me-2"></i>Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="{% url 'mainApp:edit_group_expense_step1' group.id expense.id %}" class="btn btn-primary">
+                            <i class="fas fa-edit"></i> Edit Expense
+                        </a>
+                        <button type="button" class="btn btn-danger" onclick="deleteExpense({{ expense.id }})">
+                            <i class="fas fa-trash"></i> Delete Expense
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Back Button -->
+            <div class="mt-4 text-center">
+                <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to {{ group.name }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let historyVisible = false;
+    
+    function deleteExpense(expenseId) {
+        if (confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
+            fetch(`/groups/{{ group.id }}/expenses/${expenseId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '{% url "mainApp:group_detail" group.id %}';
+                } else {
+                    alert('Error deleting expense: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting expense. Please try again.');
+            });
+        }
+    }
+    
+    function toggleExpenseHistory() {
+        const historySection = document.getElementById('historySection');
+        const button = event.target.closest('button');
+        
+        if (historyVisible) {
+            // Hide history
+            historySection.classList.add('hidden');
+            button.innerHTML = '<i class="fas fa-history"></i> Show History';
+            historyVisible = false;
+        } else {
+            // Show history
+            historySection.classList.remove('hidden');
+            button.innerHTML = '<i class="fas fa-history"></i> Hide History';
+            historyVisible = true;
+        }
+    }
+</script>
+
+{% csrf_token %}
+{% endblock %}

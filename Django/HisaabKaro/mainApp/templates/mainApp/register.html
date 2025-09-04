@@ -13,35 +13,13 @@
                         <p class="text-muted">Create your account to start tracking expenses</p>
                     </div>
 
-                    {% if messages %}
-                        {% for message in messages %}
-                            {% if "success" in message.tags %}
-                                <div class="alert alert-success">{{ message }}</div>
-                            {% elif "error" in message.tags %}
-                                <div class="alert alert-danger">{{ message }}</div>
-                            {% else %}
-                                <div class="alert alert-info">{{ message }}</div>
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
-
-                    {% if form.errors %}
-                        <div class="alert alert-danger">
-                            {% for field, errors in form.errors.items %}
-                                {% for error in errors %}
-                                    <div>{{ error }}</div>
-                                {% endfor %}
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-
                     <form method="POST">
                         {% csrf_token %}
                         
                         <!-- First Name Field -->
                         <div class="mb-3">
                             <label for="{{ form.first_name.id_for_label }}" class="form-label">
-                                <i class="fas fa-user me-2"></i>First Name <i class="fas fa-asterisk text-danger"></i>
+                                <i class="fas fa-user me-2"></i>First Name<span class="required-asterisk">*</span>
                             </label>
                             {{ form.first_name }}
                         </div>
@@ -49,7 +27,7 @@
                         <!-- Last Name Field (Optional) -->
                         <div class="mb-3">
                             <label for="{{ form.last_name.id_for_label }}" class="form-label">
-                                <i class="fas fa-user me-2"></i>Last Name <span class="text-muted">(Optional)</span>
+                                <i class="fas fa-user me-2"></i>Last Name
                             </label>
                             {{ form.last_name }}
                         </div>
@@ -57,15 +35,20 @@
                         <!-- Email Field -->
                         <div class="mb-3">
                             <label for="{{ form.email.id_for_label }}" class="form-label">
-                                <i class="fas fa-envelope me-2"></i>Email Address <i class="fas fa-asterisk text-danger"></i>
+                                <i class="fas fa-envelope me-2"></i>Email Address<span class="required-asterisk">*</span>
                             </label>
                             {{ form.email }}
+                            <div class="form-text">
+                                <small>
+                                    Please enter a valid email address. We will send a verification link to this email before you can log in.
+                                </small>
+                            </div>
                         </div>
                         
                         <!-- Password Field -->
                         <div class="mb-3">
                             <label for="{{ form.password.id_for_label }}" class="form-label">
-                                <i class="fas fa-lock me-2"></i>Password <i class="fas fa-asterisk text-danger"></i>
+                                <i class="fas fa-lock me-2"></i>Password<span class="required-asterisk">*</span>
                             </label>
                             <div class="input-group">
                                 {{ form.password }}
@@ -83,7 +66,7 @@
                         <!-- Confirm Password Field -->
                         <div class="mb-3">
                             <label for="{{ form.confirm_password.id_for_label }}" class="form-label">
-                                <i class="fas fa-lock me-2"></i>Confirm Password <i class="fas fa-asterisk text-danger"></i>
+                                <i class="fas fa-lock me-2"></i>Confirm Password<span class="required-asterisk">*</span>
                             </label>
                             <div class="input-group">
                                 {{ form.confirm_password }}
@@ -98,7 +81,7 @@
                             <input type="checkbox" class="form-check-input" id="termsAgreement" required>
                             <label class="form-check-label" for="termsAgreement">
                                 I agree to the <a href="{% url 'mainApp:terms_of_use' %}" target="_blank">Terms of Use</a> and 
-                                <a href="{% url 'mainApp:privacy_policy' %}" target="_blank">Privacy Policy</a>
+                                <a href="{% url 'mainApp:privacy_policy' %}" target="_blank">Privacy Policy</a><span class="required-asterisk">*</span>
                             </label>
                         </div>
                         

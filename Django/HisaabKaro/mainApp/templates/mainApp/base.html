@@ -41,6 +41,34 @@
             </a>
             
             <div class="navbar-nav">
+                {% if user.is_authenticated %}
+                    <!-- Notification bell icon -->
+                    <div class="notification-container me-2">
+                        <button class="btn btn-outline-light btn-sm me-2 notification-btn" onclick="toggleNotifications()" title="Notifications">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                        </button>
+                        
+                        <!-- Notification dropdown -->
+                        <div class="notification-dropdown" id="notificationDropdown">
+                            <div class="notification-header">
+                                <h6>Notifications</h6>
+                                <button class="btn btn-sm btn-link p-0" onclick="markAllNotificationsRead()" title="Mark all as read">
+                                    <i class="fas fa-check-double"></i>
+                                </button>
+                            </div>
+                            <div class="notification-list" id="notificationList">
+                                <div class="notification-loading">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                                </div>
+                            </div>
+                            <div class="notification-footer">
+                                <a href="{% url 'mainApp:notifications' %}" class="btn btn-sm btn-primary w-100">View All</a>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                
                 <!-- Theme toggle button (available for all users) -->
                 <button class="btn btn-outline-light btn-sm me-2 theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark Mode">
                     <div class="theme-toggle">
@@ -51,10 +79,10 @@
                 </button>
                 
                 {% if not user.is_authenticated %}
-                    <a class="nav-link" href="{% url 'mainApp:login' %}">
+                    <a class="nav-link" style="color: #ffffff" href="{% url 'mainApp:login' %}">
                         <i class="fas fa-sign-in-alt me-1"></i>Login
                     </a>
-                    <a class="nav-link" href="{% url 'mainApp:register' %}">
+                    <a class="nav-link" style="color: #ffffff" href="{% url 'mainApp:register' %}">
                         <i class="fas fa-user-plus me-1"></i>Register
                     </a>
                 {% endif %}
@@ -68,10 +96,27 @@
         {% if messages %}
             <div class="container mt-3">
                 {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    {% if message.tags == 'error' %}
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% elif message.tags == 'warning' %}
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% elif message.tags == 'success' %}
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         {% endif %}
@@ -305,6 +350,172 @@
                 }
             });
         }
+
+        {% if user.is_authenticated %}
+        // Notification System
+        let notificationSocket = null;
+        let notificationDropdownOpen = false;
+
+        function setupNotificationWebSocket() {
+            const wsScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsPath = `${wsScheme}//${window.location.host}/ws/user/{{ user.id }}/`;
+            
+            try {
+                notificationSocket = new WebSocket(wsPath);
+                
+                notificationSocket.onopen = function(e) {
+                    console.log('Notification WebSocket connected');
+                };
+                
+                notificationSocket.onmessage = function(e) {
+                    const data = JSON.parse(e.data);
+                    
+                    if (data.type === 'notification_update') {
+                        updateNotificationBadge(data.unread_count);
+                        
+                        // If notification dropdown is open, refresh the list
+                        if (notificationDropdownOpen) {
+                            loadNotifications();
+                        }
+                    }
+                };
+                
+                notificationSocket.onclose = function(e) {
+                    console.log('Notification WebSocket disconnected');
+                    // Attempt to reconnect after 3 seconds
+                    setTimeout(setupNotificationWebSocket, 3000);
+                };
+                
+                notificationSocket.onerror = function(e) {
+                    console.error('Notification WebSocket error:', e);
+                };
+                
+            } catch (error) {
+                console.error('Error setting up notification WebSocket:', error);
+            }
+        }
+
+        function updateNotificationBadge(count) {
+            const badge = document.getElementById('notificationBadge');
+            if (badge) {
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notificationDropdown');
+            if (dropdown) {
+                if (notificationDropdownOpen) {
+                    dropdown.classList.remove('show');
+                    notificationDropdownOpen = false;
+                } else {
+                    dropdown.classList.add('show');
+                    notificationDropdownOpen = true;
+                    loadNotifications();
+                }
+            }
+        }
+
+        function loadNotifications() {
+            const list = document.getElementById('notificationList');
+            if (!list) return;
+            
+            list.innerHTML = '<div class="notification-loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            
+            fetch('/notifications/api/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayNotifications(data.notifications);
+                        updateNotificationBadge(data.unread_count);
+                    } else {
+                        list.innerHTML = '<div class="notification-empty">Failed to load notifications</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                    list.innerHTML = '<div class="notification-empty">Failed to load notifications</div>';
+                });
+        }
+
+        function displayNotifications(notifications) {
+            const list = document.getElementById('notificationList');
+            if (!list) return;
+            
+            if (notifications.length === 0) {
+                list.innerHTML = '<div class="notification-empty">No notifications</div>';
+                return;
+            }
+            
+            list.innerHTML = notifications.map(notification => `
+                <div class="notification-item ${notification.is_read ? '' : 'unread'}" 
+                     onclick="markNotificationRead(${notification.id})">
+                    <div class="notification-title">${notification.title}</div>
+                    <div class="notification-message">${notification.message}</div>
+                    <div class="notification-time">${notification.time_ago}</div>
+                </div>
+            `).join('');
+        }
+
+        function markNotificationRead(notificationId) {
+            fetch(`/notifications/${notificationId}/read/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Refresh notifications
+                    loadNotifications();
+                }
+            })
+            .catch(error => {
+                console.error('Error marking notification as read:', error);
+            });
+        }
+
+        function markAllNotificationsRead() {
+            fetch('/notifications/mark-all-read/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadNotifications();
+                    updateNotificationBadge(0);
+                }
+            })
+            .catch(error => {
+                console.error('Error marking all notifications as read:', error);
+            });
+        }
+
+        // Initialize notification system when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            setupNotificationWebSocket();
+            loadNotifications(); // Load initial notification count
+            
+            // Close notification dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                const container = document.querySelector('.notification-container');
+                if (container && !container.contains(e.target) && notificationDropdownOpen) {
+                    toggleNotifications();
+                }
+            });
+        });
+        {% endif %}
     </script>
     
     <!-- Charts functionality -->

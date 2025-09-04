@@ -2,6 +2,7 @@
 {% block title %}Profile - HisaabKaro{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="container mt-4">
     <div class="row justify-content-center">
         <div class="col-md-8">
@@ -13,16 +14,13 @@
                     </h4>
                 </div>
                 <div class="card-body text-center">
-                    <div class="profile-avatar mb-3">
-                        <i class="fas fa-user-circle fa-5x text-muted"></i>
-                    </div>
                     <h5>{{ user.get_full_name|default:user.username }}</h5>
                     <p class="text-muted">{{ user.email }}</p>
                     <small class="text-muted">Member since {{ user.date_joined|date:"F Y" }}</small>
                 </div>
             </div>
 
-            <!-- Profile Information -->
+            <!-- Account Information (Read-Only) -->
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
@@ -30,87 +28,59 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post" id="profileForm">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="update_profile">
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="first_name" class="form-label">First Name *</label>
-                                <input type="text" class="form-control" id="first_name" name="first_name" 
-                                       value="{{ user.first_name }}" required maxlength="30">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="last_name" class="form-label">Last Name</label>
-                                <input type="text" class="form-control" id="last_name" name="last_name" 
-                                       value="{{ user.last_name }}" maxlength="30">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-secondary">
+                                <i class="fas fa-user me-2"></i>First Name
+                            </label>
+                            <div class="data-container">
+                                {{ user.first_name|default:"Not set" }}
                             </div>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email Address (Username) *</label>
-                            <input type="email" class="form-control" id="email" name="email" 
-                                   value="{{ user.email }}" required maxlength="254">
-                            <small class="form-text text-muted">This email is also your username for login.</small>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-secondary">
+                                <i class="fas fa-user me-2"></i>Last Name
+                            </label>
+                            <div class="data-container">
+                                {{ user.last_name|default:"Not set" }}
+                            </div>
                         </div>
-                        
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button type="button" class="btn btn-outline-secondary" id="editProfileBtn">
-                                <i class="fas fa-edit"></i> Edit Profile
-                            </button>
-                            <button type="submit" class="btn btn-primary" id="saveProfileBtn" style="display: none;">
-                                <i class="fas fa-save"></i> Save Changes
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="cancelProfileBtn" style="display: none;">
-                                <i class="fas fa-times"></i> Cancel
-                            </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-secondary">
+                            <i class="fas fa-envelope me-2"></i>Email Address (Username)
+                        </label>
+                        <div class="data-container">
+                            {{ user.email }}
                         </div>
-                    </form>
+                        <small class="form-text text-muted mt-1">
+                            <i class="fas fa-info-circle me-1"></i>You cannot edit your email address.
+                        </small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'mainApp:edit_profile' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit"></i> Edit Profile
+                        </a>
+                    </div>
                 </div>
             </div>
 
-            <!-- Password Change -->
+            <!-- Security Settings -->
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-lock"></i> Change Password
+                        <i class="fas fa-shield-alt"></i> Security Settings
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post" id="passwordForm">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="change_password">
-                        
-                        <div class="mb-3">
-                            <label for="current_password" class="form-label">Current Password *</label>
-                            <input type="password" class="form-control" id="current_password" name="current_password" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="new_password" class="form-label">New Password *</label>
-                            <input type="password" class="form-control" id="new_password" name="new_password" 
-                                   required minlength="8">
-                            <small class="form-text text-muted">Password must be at least 8 characters long.</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="confirm_password" class="form-label">Confirm New Password *</label>
-                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
-                                   required minlength="8">
-                        </div>
-                        
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button type="button" class="btn btn-outline-warning" id="changePasswordBtn">
-                                <i class="fas fa-key"></i> Change Password
-                            </button>
-                            <button type="submit" class="btn btn-warning" id="savePasswordBtn" style="display: none;">
-                                <i class="fas fa-save"></i> Update Password
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="cancelPasswordBtn" style="display: none;">
-                                <i class="fas fa-times"></i> Cancel
-                            </button>
-                        </div>
-                    </form>
+                    <p class="text-muted mb-3">Manage your account security and password settings.</p>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'mainApp:change_password' %}" class="btn btn-outline-warning">
+                            <i class="fas fa-key"></i> Change Password
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -122,14 +92,20 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-between">
-                        <a href="{% url 'mainApp:home' %}" class="btn btn-outline-primary">
-                            <i class="fas fa-home"></i> Back to Dashboard
-                        </a>
-                        <a href="{% url 'mainApp:logout' %}" class="btn btn-danger" 
-                           onclick="return confirm('Are you sure you want to logout?')">
-                            <i class="fas fa-sign-out-alt"></i> Logout
-                        </a>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <a href="{% url 'mainApp:logout' %}" class="btn btn-warning w-100">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-danger w-100" onclick="confirmDeleteAccount()">
+                                <i class="fas fa-trash-alt"></i> Delete Account
+                            </button>
+                            <small class="form-text text-muted mt-2">
+                                <strong>Warning:</strong> This action cannot be reversed. You must clear all pending dues before deleting your account.
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -139,96 +115,66 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Profile editing functionality
-    const profileInputs = document.querySelectorAll('#profileForm input[type="text"], #profileForm input[type="email"]');
-    const editProfileBtn = document.getElementById('editProfileBtn');
-    const saveProfileBtn = document.getElementById('saveProfileBtn');
-    const cancelProfileBtn = document.getElementById('cancelProfileBtn');
-    
-    // Password change functionality
-    const passwordInputs = document.querySelectorAll('#passwordForm input[type="password"]');
-    const changePasswordBtn = document.getElementById('changePasswordBtn');
-    const savePasswordBtn = document.getElementById('savePasswordBtn');
-    const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
-    
-    // Store original values
-    let originalProfileValues = {};
-    profileInputs.forEach(input => {
-        originalProfileValues[input.name] = input.value;
-        input.disabled = true;
-    });
-    
-    // Disable password inputs initially
-    passwordInputs.forEach(input => {
-        input.disabled = true;
-    });
-    
-    // Profile editing
-    editProfileBtn.addEventListener('click', function() {
-        profileInputs.forEach(input => input.disabled = false);
-        editProfileBtn.style.display = 'none';
-        saveProfileBtn.style.display = 'inline-block';
-        cancelProfileBtn.style.display = 'inline-block';
-        profileInputs[0].focus();
-    });
-    
-    cancelProfileBtn.addEventListener('click', function() {
-        profileInputs.forEach(input => {
-            input.value = originalProfileValues[input.name];
-            input.disabled = true;
-        });
-        editProfileBtn.style.display = 'inline-block';
-        saveProfileBtn.style.display = 'none';
-        cancelProfileBtn.style.display = 'none';
-    });
-    
-    // Password changing
-    changePasswordBtn.addEventListener('click', function() {
-        passwordInputs.forEach(input => {
-            input.disabled = false;
-            input.value = '';
-        });
-        changePasswordBtn.style.display = 'none';
-        savePasswordBtn.style.display = 'inline-block';
-        cancelPasswordBtn.style.display = 'inline-block';
-        passwordInputs[0].focus();
-    });
-    
-    cancelPasswordBtn.addEventListener('click', function() {
-        passwordInputs.forEach(input => {
-            input.disabled = true;
-            input.value = '';
-        });
-        changePasswordBtn.style.display = 'inline-block';
-        savePasswordBtn.style.display = 'none';
-        cancelPasswordBtn.style.display = 'none';
-    });
-    
-    // Password confirmation validation
-    const newPasswordInput = document.getElementById('new_password');
-    const confirmPasswordInput = document.getElementById('confirm_password');
-    
-    function validatePasswords() {
-        if (newPasswordInput.value && confirmPasswordInput.value) {
-            if (newPasswordInput.value !== confirmPasswordInput.value) {
-                confirmPasswordInput.setCustomValidity('Passwords do not match');
-            } else {
-                confirmPasswordInput.setCustomValidity('');
+    // Account deletion functionality
+    window.confirmDeleteAccount = function() {
+        if (confirm('Are you absolutely sure you want to delete your account?\n\nThis action cannot be reversed and will permanently delete:\n- Your profile and account data\n- Your expense history\n- Your group memberships\n\nYou must clear all pending dues before proceeding.\n\nType "DELETE" to confirm:')) {
+            const confirmText = prompt('Please type "DELETE" to confirm account deletion:');
+            if (confirmText === 'DELETE') {
+                // Check for pending dues via AJAX
+                checkPendingDuesAndDelete();
+            } else if (confirmText !== null) {
+                alert('Account deletion cancelled. You must type "DELETE" exactly.');
             }
         }
+    };
+    
+    function checkPendingDuesAndDelete() {
+        fetch('/profile/check-pending-dues/', {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.has_pending_dues) {
+                alert('Cannot delete account: You have pending dues in the following groups:\n\n' + 
+                      data.pending_groups.join('\n') + 
+                      '\n\nPlease settle all dues before deleting your account.');
+            } else {
+                // Proceed with account deletion
+                deleteAccount();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error checking pending dues. Please try again.');
+        });
     }
     
-    newPasswordInput.addEventListener('input', validatePasswords);
-    confirmPasswordInput.addEventListener('input', validatePasswords);
-    
-    // Form submission validation
-    document.getElementById('passwordForm').addEventListener('submit', function(e) {
-        if (newPasswordInput.value !== confirmPasswordInput.value) {
-            e.preventDefault();
-            alert('Passwords do not match!');
-            return false;
-        }
-    });
+    function deleteAccount() {
+        fetch('/profile/delete-account/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Your account has been successfully deleted.');
+                window.location.href = '/';
+            } else {
+                alert('Error deleting account: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting account. Please try again.');
+        });
+    }
 });
 </script>
 

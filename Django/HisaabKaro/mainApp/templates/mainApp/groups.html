@@ -4,10 +4,10 @@
 {% block content %}
 {% csrf_token %}
 <!-- Charts Button -->
-<button class="charts-button" onclick="openChartModal('groups')">
+<a href="{% url 'mainApp:charts_page' 'groups' %}" class="charts-button">
     <i class="fas fa-chart-pie"></i>
     <span>Show Graphs</span>
-</button>
+</a>
 
 <div class="container mt-4">
     <div class="header">
@@ -35,9 +35,9 @@
                 <!-- Balance Information -->
                 <div class="group-balance mb-2">
                     {% if item.you_owe %}
-                        <span class="badge bg-danger">You owe ${{ item.balance|floatformat:2|cut:'-' }}</span>
+                        <span class="badge bg-danger">You owe PKR {{ item.balance|floatformat:0|cut:'-' }}</span>
                     {% elif item.you_are_owed %}
-                        <span class="badge bg-success">You are owed ${{ item.balance|floatformat:2 }}</span>
+                        <span class="badge bg-success">You are owed PKR {{ item.balance|floatformat:0 }}</span>
                     {% else %}
                         <span class="badge bg-secondary">All settled up</span>
                     {% endif %}
@@ -57,52 +57,5 @@
             <p>Create or join your first group to start tracking shared expenses</p>
         </div>
     {% endif %}
-</div>
-
-<!-- Chart Modal (reusing from home.html) -->
-<div class="chart-modal" id="chartModal">
-    <div class="chart-modal-content">
-        <div class="chart-modal-header">
-            <h5>Group Spending Analysis</h5>
-            <button class="chart-close" onclick="closeChartModal()">&times;</button>
-        </div>
-        <div class="chart-modal-body">
-            <div class="chart-options">
-                <div class="chart-option" data-type="day">
-                    <i class="fas fa-calendar-day"></i>
-                    <span>Single Day</span>
-                </div>
-                <div class="chart-option" data-type="month">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Single Month</span>
-                </div>
-                <div class="chart-option" data-type="range">
-                    <i class="fas fa-calendar-week"></i>
-                    <span>Date Range</span>
-                </div>
-            </div>
-            
-            <div class="date-inputs" id="dateInputs">
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="startDate">Start Date:</label>
-                        <input type="date" class="form-control" id="startDate">
-                    </div>
-                    <div class="col-md-6" id="endDateCol">
-                        <label for="endDate">End Date:</label>
-                        <input type="date" class="form-control" id="endDate">
-                    </div>
-                </div>
-                <button class="chart-generate-btn" onclick="generateChart()">Generate Chart</button>
-            </div>
-            
-            <div class="chart-container" id="chartContainer">
-                <canvas id="expenseChart" class="chart-canvas"></canvas>
-                <div class="chart-stats" id="chartStats">
-                    <!-- Stats will be populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
