@@ -1,0 +1,64 @@
+{% extends 'mainApp/base.html' %}
+{% load static %}
+
+{% block title %}Send Payment Reminder - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-bell"></i> Send Payment Reminder</h4>
+                    <p class="mb-0 text-muted">Group: {{ group.name }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6>Reminding: {{ to_user.get_full_name|default:to_user.username }}</h6>
+                        <p class="mb-0">Amount owed: PKR {{ amount }}</p>
+                    </div>
+                    
+                    <p>Choose how you want to send the reminder:</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="reminder_type" id="email" value="email" required>
+                                <label class="form-check-label" for="email">
+                                    <i class="fas fa-envelope"></i> Send Email Reminder
+                                    <small class="d-block text-muted">Send a gentle reminder email to {{ to_user.email }}</small>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="reminder_type" id="notification" value="notification" required>
+                                <label class="form-check-label" for="notification">
+                                    <i class="fas fa-bell"></i> Send In-App Notification
+                                    <small class="d-block text-muted">Send a notification within the app</small>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-info-circle"></i> 
+                            <strong>Note:</strong> You can only send one reminder every 24 hours to the same user.
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-paper-plane"></i> Send Reminder
+                            </button>
+                            <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

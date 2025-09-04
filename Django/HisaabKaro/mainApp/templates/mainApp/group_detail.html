@@ -81,9 +81,18 @@
                                     </div>
                                 {% else %}
                                     <div class="alert alert-success mb-0">
-                                        <i class="fas fa-arrow-down me-2"></i>
-                                        <strong>{{ balance_item.user.first_name }} {{ balance_item.user.last_name }}</strong> owes you: 
-                                        <span class="fw-bold">PKR {{ balance_item.amount|floatformat:0 }}</span>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-arrow-down me-2"></i>
+                                                <strong>{{ balance_item.user.first_name }} {{ balance_item.user.last_name }}</strong> owes you: 
+                                                <span class="fw-bold">PKR {{ balance_item.amount|floatformat:0 }}</span>
+                                            </div>
+                                            <div>
+                                                <a href="{% url 'mainApp:remind_payment' group.id %}" class="btn btn-sm btn-warning me-2">
+                                                    <i class="fas fa-bell me-1"></i>Remind
+                                                </a>
+                                            </div>
+                                        </div>
                                     </div>
                                 {% endif %}
                             </div>
@@ -337,7 +346,73 @@
         
         function regenerateInviteLink() {
             if (confirm('Are you sure you want to regenerate the invite link? The current link will no longer work.')) {
-                alert('This feature will be implemented with the backend API.');
+                const btn = event.target.closest('button');
+                const originalText = btn.innerHTML;
+                
+                // Show loading state
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Regenerating...';
+                btn.disabled = true;
+                
+                // Get CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                
+                fetch(`/groups/{{ group.id }}/regenerate-invite/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the invite link input with the new link
+                        document.getElementById('inviteLink').value = data.new_invite_link;
+                        
+                        // Show success message
+                        btn.innerHTML = '<i class="fas fa-check"></i> Regenerated!';
+                        btn.classList.remove('btn-warning');
+                        btn.classList.add('btn-success');
+                        
+                        // Show notification
+                        alert(data.message);
+                        
+                        // Optionally reload the page to refresh history
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                        
+                    } else {
+                        // Show error message
+                        alert('Error: ' + data.error);
+                        
+                        // Reset button
+                        btn.innerHTML = originalText;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error regenerating invite link:', error);
+                    alert('An error occurred while regenerating the invite link. Please try again.');
+                    
+                    // Reset button
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-warning');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    
+                    // Reset button state after delay if success
+                    if (btn.classList.contains('btn-success')) {
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.classList.remove('btn-success');
+                            btn.classList.add('btn-warning');
+                        }, 3000);
+                    }
+                });
             }
         }
         

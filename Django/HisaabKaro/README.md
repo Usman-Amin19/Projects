@@ -63,6 +63,7 @@ HisaabKaro is a comprehensive expense management platform that transforms how yo
 
 ### 🔔 **Smart Notification System**
 - **Automatic Reminders**: Never forget to pay or collect dues
+- **Payment Reminders**: Gentle nudges for pending payments with 24-hour cooldown
 - **Real-time Alerts**: Instant notifications for group activities
 - **Expense Updates**: Get notified when expenses are added/modified
 - **Settlement Tracking**: Alerts when debts are settled
@@ -135,8 +136,15 @@ Stay informed with intelligent notifications:
 #### **Notification Types:**
 - **💰 Expense Alerts**: When new expenses are added to your groups
 - **💸 Settlement Reminders**: When you owe money or someone owes you
-- **👥 Group Updates**: Member additions, removals, and role changes
+- **� Payment Reminders**: Send gentle reminders to users who owe you money
+- **�👥 Group Updates**: Member additions, removals, and role changes
 - **✅ Payment Confirmations**: When debts are marked as settled
+
+#### **Payment Reminder System:**
+- **📧 Email Reminders**: Send professional email reminders to debtors
+- **📱 In-App Reminders**: Send instant notifications within the app
+- **⏰ 24-Hour Cooldown**: Prevents spam with automatic cooldown period
+- **🎯 Smart Targeting**: Automatically identifies who owes you money
 
 #### **Delivery Channels:**
 - **🌐 In-app Notifications**: Real-time browser notifications
@@ -146,6 +154,33 @@ Stay informed with intelligent notifications:
 #### **Smart Logic:**
 ```
 Event Trigger → Notification Generation → Real-time Delivery → Read Status Tracking
+```
+
+---
+
+### 🔔 Payment Reminder System - *Gentle Nudges for Outstanding Debts*
+
+HisaabKaro includes a sophisticated reminder system to help you collect outstanding payments without being pushy:
+
+#### **How It Works:**
+```
+1. View Balance → 2. Click "Remind" → 3. Select User (if multiple) → 4. Choose Method → 5. Send Reminder
+```
+
+#### **Smart Features:**
+- **🎯 Auto-Detection**: Automatically shows "Remind" button only when others owe you money
+- **👥 Multi-User Support**: Select specific users when multiple people owe you
+- **📧 Dual Delivery**: Choose between email or in-app notifications
+- **⏰ Cooldown Protection**: 24-hour waiting period prevents reminder spam
+- **💬 Professional Tone**: Gentle, friendly reminder messages
+
+#### **Reminder Methods:**
+- **📧 Email Reminder**: Professional email sent to debtor's registered email
+- **📱 In-App Notification**: Instant notification within the HisaabKaro app
+
+#### **User Experience:**
+```
+Debt Detected → Remind Button Available → Method Selection → Delivery → 24h Cooldown Active
 ```
 
 ---

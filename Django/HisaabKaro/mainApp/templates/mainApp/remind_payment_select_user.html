@@ -1,0 +1,65 @@
+{% extends 'mainApp/base.html' %}
+{% load static %}
+
+{% block title %}Send Payment Reminder - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-bell"></i> Send Payment Reminder</h4>
+                    <p class="mb-0 text-muted">Group: {{ group.name }}</p>
+                </div>
+                <div class="card-body">
+                    <p>Select the user you want to remind about their payment:</p>
+                    
+                    {% if users_owed_by %}
+                        <div class="list-group">
+                            {% for user_data in users_owed_by %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ user_data.user.get_full_name|default:user_data.user.username }}</h6>
+                                            <small class="text-muted">Owes you PKR {{ user_data.amount }}</small>
+                                        </div>
+                                        <div>
+                                            {% if user_data.can_remind %}
+                                                <a href="{% url 'mainApp:remind_payment_type' group.id user_data.user.id %}" 
+                                                   class="btn btn-warning btn-sm">
+                                                    <i class="fas fa-bell"></i> Remind
+                                                </a>
+                                            {% else %}
+                                                <button class="btn btn-secondary btn-sm" disabled 
+                                                        title="You can send next reminder after {{ user_data.next_reminder_time|date:'M d, Y \a\t g:i A' }}">
+                                                    <i class="fas fa-clock"></i> Cooldown
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% if not user_data.can_remind %}
+                                        <small class="text-info">
+                                            Next reminder available: {{ user_data.next_reminder_time|date:"M d, Y \a\t g:i A" }}
+                                        </small>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> No one owes you money in this group.
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        <a href="{% url 'mainApp:group_detail' group.id %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Group
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

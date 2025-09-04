@@ -38,6 +38,7 @@ urlpatterns = [
     path('groups/<int:group_id>/expenses/<int:expense_id>/', views.expense_detail, name='expense_detail'),
     path('groups/create/', views.create_group, name='create_group'),
     path('groups/join/', views.join_group_form, name='join_group_form'),
+    path('groups/<int:group_id>/regenerate-invite/', views.regenerate_invite_link, name='regenerate_invite_link'),
     
     # Add Group Expense - 4 Step Process
     path('groups/<int:group_id>/add-expense/step1/', views.add_group_expense_step1, name='add_group_expense_step1'),
@@ -60,6 +61,10 @@ urlpatterns = [
     path('groups/<int:group_id>/settle-up/<int:user_id>/', views.settle_up_page, name='settle_up_single'),
     path('groups/<int:group_id>/process-settlement/<int:user_id>/', views.process_settlement, name='process_settlement'),
     path('groups/<int:group_id>/settlements/<int:settlement_id>/respond/', views.respond_to_settlement, name='respond_to_settlement'),
+    
+    # Payment Reminder URLs
+    path('groups/<int:group_id>/remind-payment/', views.remind_payment, name='remind_payment'),
+    path('groups/<int:group_id>/remind-payment/<int:user_id>/', views.remind_payment_type, name='remind_payment_type'),
     
     # Chart Data URLs
     path('charts/home-data/', views.home_chart_data, name='home_chart_data'),

@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from decimal import Decimal
 from datetime import datetime, date, timedelta
 from django.template.defaultfilters import timesince
-from .models import PersonalExpense, GroupExpense, Group, Category, ExpenseSplit, GroupHistory, UserProfile, ExpenseHistory, SettlementRequest, ChatMessage, GroupMembership, ChatMessageRead, Notification
+from .models import PersonalExpense, GroupExpense, Group, Category, ExpenseSplit, GroupHistory, UserProfile, ExpenseHistory, SettlementRequest, PaymentReminder, ChatMessage, GroupMembership, ChatMessageRead, Notification
 import logging
 
 from django.conf import settings
@@ -1350,6 +1350,208 @@ def edit_group_expense_step3(request, group_id, expense_id):
     }
     return render(request, 'mainApp/group_expense_step3.html', context)
 
+def track_expense_changes(expense, expense_data, new_splits_data, split_type, request):
+    """Track detailed changes in expense and create a single consolidated history entry"""
+    import json
+    from decimal import Decimal
+    
+    changes = []
+    detailed_changes = []
+    
+    # Track basic field changes
+    if expense_data['title'] != expense.title:
+        old_title = expense.title
+        new_title = expense_data['title']
+        changes.append(f"Title: '{old_title}' → '{new_title}'")
+        detailed_changes.append({
+            'type': 'title_changed',
+            'old_value': old_title,
+            'new_value': new_title,
+            'description': f"Title changed from '{old_title}' to '{new_title}'"
+        })
+    
+    if Decimal(expense_data['amount']) != expense.amount:
+        old_amount = expense.amount
+        new_amount = Decimal(expense_data['amount'])
+        changes.append(f"Amount: PKR {old_amount} → PKR {new_amount}")
+        detailed_changes.append({
+            'type': 'amount_changed',
+            'old_value': str(old_amount),
+            'new_value': str(new_amount),
+            'description': f"Amount changed from PKR {old_amount} to PKR {new_amount}"
+        })
+    
+    if expense_data['description'] != expense.description:
+        old_desc = expense.description or "No description"
+        new_desc = expense_data['description'] or "No description"
+        changes.append(f"Description updated")
+        detailed_changes.append({
+            'type': 'description_changed',
+            'old_value': old_desc,
+            'new_value': new_desc,
+            'description': f"Description changed"
+        })
+    
+    # Track category changes
+    old_category = expense.category
+    new_category_id = expense_data.get('category_id')
+    new_category = Category.objects.get(id=new_category_id) if new_category_id else None
+    
+    if old_category != new_category:
+        old_cat_name = old_category.name if old_category else "No category"
+        new_cat_name = new_category.name if new_category else "No category"
+        changes.append(f"Category: {old_cat_name} → {new_cat_name}")
+        detailed_changes.append({
+            'type': 'category_changed',
+            'old_value': old_cat_name,
+            'new_value': new_cat_name,
+            'description': f"Category changed from '{old_cat_name}' to '{new_cat_name}'"
+        })
+    
+    # Track split type changes
+    if split_type != expense.split_type:
+        old_split_display = dict(expense.SPLIT_CHOICES)[expense.split_type]
+        new_split_display = dict(expense.SPLIT_CHOICES)[split_type]
+        changes.append(f"Split type: {old_split_display} → {new_split_display}")
+        detailed_changes.append({
+            'type': 'split_type_changed',
+            'old_value': expense.split_type,
+            'new_value': split_type,
+            'description': f"Split type changed from '{old_split_display}' to '{new_split_display}'"
+        })
+    
+    # Track participant changes
+    participant_ids = expense_data.get('participant_ids', [])
+    old_participant_ids = set(expense.participants.values_list('id', flat=True))
+    new_participant_ids = set(int(pid) for pid in participant_ids)
+    
+    if old_participant_ids != new_participant_ids:
+        added_participants = new_participant_ids - old_participant_ids
+        removed_participants = old_participant_ids - new_participant_ids
+        
+        participant_changes = []
+        if added_participants:
+            added_users = User.objects.filter(id__in=added_participants)
+            added_names = [user.get_full_name() or user.username for user in added_users]
+            participant_changes.append(f"Added: {', '.join(added_names)}")
+        
+        if removed_participants:
+            removed_users = User.objects.filter(id__in=removed_participants)
+            removed_names = [user.get_full_name() or user.username for user in removed_users]
+            participant_changes.append(f"Removed: {', '.join(removed_names)}")
+        
+        changes.append(f"Participants: {'; '.join(participant_changes)}")
+        detailed_changes.append({
+            'type': 'participants_changed',
+            'old_value': json.dumps(list(old_participant_ids)),
+            'new_value': json.dumps(list(new_participant_ids)),
+            'description': f"Participants changed: {'; '.join(participant_changes)}"
+        })
+    
+    # Track individual contribution/split changes
+    old_splits = {split.user.id: split for split in expense.splits.all()}
+    contribution_changes = []
+    split_changes = []
+    
+    for participant_id in participant_ids:
+        participant_id_int = int(participant_id)
+        participant = User.objects.get(id=participant_id_int)
+        participant_name = participant.get_full_name() or participant.username
+        
+        # Get new values
+        new_contribution = Decimal(expense_data.get('contributions', {}).get(str(participant_id), '0'))
+        
+        if split_type == 'equal':
+            new_split_amount = Decimal(expense_data['amount']) / len(participant_ids)
+        elif split_type == 'percentage':
+            percentage = Decimal(new_splits_data.get(f'percentage_{participant_id}', '0'))
+            new_split_amount = (Decimal(expense_data['amount']) * percentage) / 100
+        else:  # amount
+            new_split_amount = Decimal(new_splits_data.get(f'amount_{participant_id}', '0'))
+        
+        # Compare with old values if participant was in old splits
+        if participant_id_int in old_splits:
+            old_split = old_splits[participant_id_int]
+            old_contribution = old_split.contribution
+            old_split_amount = old_split.amount
+            
+            # Track contribution changes
+            if old_contribution != new_contribution:
+                contribution_changes.append(
+                    f"{participant_name}: PKR {old_contribution} → PKR {new_contribution}"
+                )
+            
+            # Track split amount changes
+            if old_split_amount != new_split_amount:
+                split_changes.append(
+                    f"{participant_name}: PKR {old_split_amount} → PKR {new_split_amount}"
+                )
+        else:
+            # New participant
+            if new_contribution > 0:
+                contribution_changes.append(f"{participant_name}: PKR 0 → PKR {new_contribution}")
+            split_changes.append(f"{participant_name}: PKR 0 → PKR {new_split_amount}")
+    
+    # Add contribution and split changes to the overall changes
+    if contribution_changes:
+        changes.append(f"Contributions changed: {'; '.join(contribution_changes)}")
+    
+    if split_changes:
+        changes.append(f"Split amounts changed: {'; '.join(split_changes)}")
+    
+    # Create a single consolidated history entry if there are any changes
+    if changes:
+        # Combine all changes into a single description
+        full_description = "; ".join(changes)
+        
+        # Create one history entry with all changes combined
+        ExpenseHistory.objects.create(
+            expense=expense,
+            action='expense_updated',
+            performed_by=request.user,
+            description=full_description
+        )
+    
+    return changes
+
+def send_expense_edit_notifications(expense, changes, performed_by):
+    """Send detailed notifications to all expense participants about changes"""
+    if not changes:
+        return
+    
+    # Create a comprehensive change summary
+    change_summary = "; ".join(changes)
+    
+    # Get all participants (including the editor)
+    all_participants = list(expense.participants.all())
+    
+    # Create notifications for all participants
+    try:
+        for participant in all_participants:
+            # Create notification title and message
+            if participant == performed_by:
+                title = f"You updated expense: {expense.title}"
+                message = f"Changes made: {change_summary}"
+            else:
+                title = f"Expense updated: {expense.title}"
+                message = f"{performed_by.get_full_name() or performed_by.username} made changes: {change_summary}"
+            
+            # Create notification
+            notification = Notification.objects.create(
+                user=participant,
+                title=title,
+                message=message,
+                notification_type='expense_updated',
+                group=expense.group,
+                group_expense=expense
+            )
+            
+            # Send real-time update
+            send_notification_update(participant)
+            
+    except Exception as e:
+        print(f"Error creating expense edit notifications: {e}")
+
 @login_required
 @expense_step_required([1, 2, 3])
 def edit_group_expense_step4(request, group_id, expense_id):
@@ -1364,22 +1566,10 @@ def edit_group_expense_step4(request, group_id, expense_id):
     if request.method == 'POST':
         split_type = request.POST.get('split_type')
         
-        # Track changes for history
-        changes = []
+        # Track detailed changes before making any updates
+        changes = track_expense_changes(expense, expense_data, request.POST, split_type, request)
         
         # Update basic expense details
-        old_title = expense.title
-        old_amount = expense.amount
-        old_description = expense.description
-        
-        if expense_data['title'] != old_title:
-            changes.append(f"Title changed from '{old_title}' to '{expense_data['title']}'")
-        if Decimal(expense_data['amount']) != old_amount:
-            changes.append(f"Amount changed from PKR{old_amount} to PKR{expense_data['amount']}")
-        if expense_data['description'] != old_description:
-            changes.append(f"Description updated")
-        
-        # Update expense
         expense.title = expense_data['title']
         expense.amount = Decimal(expense_data['amount'])
         expense.description = expense_data['description']
@@ -1393,14 +1583,9 @@ def edit_group_expense_step4(request, group_id, expense_id):
         expense.save()
         
         # Update participants
-        old_participants = set(expense.participants.all())
-        new_participants = set(participants)
-        
-        if old_participants != new_participants:
-            changes.append("Participants updated")
-            expense.participants.clear()
-            for participant in participants:
-                expense.participants.add(participant)
+        expense.participants.clear()
+        for participant in participants:
+            expense.participants.add(participant)
         
         # Delete old splits and create new ones
         expense.splits.all().delete()
@@ -1441,21 +1626,10 @@ def edit_group_expense_step4(request, group_id, expense_id):
                     contribution=contributions.get(str(participant_id), Decimal('0.0'))
                 )
         
-        # Create history entries
+        # Send notifications if there were changes
         if changes:
-            ExpenseHistory.objects.create(
-                expense=expense,
-                action='modified',
-                performed_by=request.user,
-                description=f"Expense updated: {'; '.join(changes)}"
-            )
-            
-            GroupHistory.objects.create(
-                group=group,
-                action='expense_modified',
-                performed_by=request.user,
-                description=f"Expense '{expense.title}' was modified"
-            )
+            # Send detailed notifications to all participants (including editor)
+            send_expense_edit_notifications(expense, changes, request.user)
         
         # Clear session data
         clear_expense_session(request)
@@ -1506,8 +1680,13 @@ def settle_up_page(request, group_id, user_id=None):
     detailed_balance = group.get_detailed_balance_for_user(request.user)
     
     # Filter to only show users that the current user owes money to
-    users_owed = {user: data for user, data in detailed_balance.items() 
-                  if data['type'] == 'owes'}
+    users_owed = {}
+    for balance_item in detailed_balance:
+        if balance_item['type'] == 'you_owe':
+            users_owed[balance_item['user']] = {
+                'amount': balance_item['amount'],
+                'type': 'owes'
+            }
     
     if user_id:
         # Settling with specific user
@@ -1561,8 +1740,13 @@ def process_settlement(request, group_id, user_id):
     
     # Validate the amount
     detailed_balance = group.get_detailed_balance_for_user(request.user)
-    users_owed = {user: data for user, data in detailed_balance.items() 
-                  if data['type'] == 'owes'}
+    users_owed = {}
+    for balance_item in detailed_balance:
+        if balance_item['type'] == 'you_owe':
+            users_owed[balance_item['user']] = {
+                'amount': balance_item['amount'],
+                'type': 'owes'
+            }
     
     if to_user not in users_owed:
         messages.error(request, "You don't owe money to this user.")
@@ -1587,13 +1771,13 @@ def process_settlement(request, group_id, user_id):
         notes=request.POST.get('notes', '')
     )
     
-    # Create notification for settlement request
+    # Create notifications for both users
     try:
-        notification = Notification.create_settlement_notification(settlement, 'settle_request')
-        if notification:
+        notifications = Notification.create_settlement_notification(settlement, 'settle_request')
+        for notification in notifications:
             send_notification_update(notification.user)
     except Exception as e:
-        print(f"Error creating settlement notification: {e}")
+        print(f"Error creating settlement notifications: {e}")
     
     messages.success(request, f"Settlement request of PKR {settle_amount} sent to {to_user.first_name} {to_user.last_name}. Waiting for approval.")
     return redirect('mainApp:group_detail', group_id=group.id)
@@ -1668,13 +1852,13 @@ def respond_to_settlement(request, group_id, settlement_id):
         
         messages.success(request, f"Settlement of PKR {settlement.amount} from {settlement.from_user.first_name} {settlement.from_user.last_name} has been approved and processed.")
         
-        # Create notification for settlement approval
+        # Create notifications for both users
         try:
-            notification = Notification.create_settlement_notification(settlement, 'settle_approved')
-            if notification:
+            notifications = Notification.create_settlement_notification(settlement, 'settle_approved')
+            for notification in notifications:
                 send_notification_update(notification.user)
         except Exception as e:
-            print(f"Error creating settlement approval notification: {e}")
+            print(f"Error creating settlement approval notifications: {e}")
         
     elif response == 'reject':
         settlement.status = 'rejected'
@@ -1683,15 +1867,178 @@ def respond_to_settlement(request, group_id, settlement_id):
         
         messages.info(request, f"Settlement request of PKR {settlement.amount} from {settlement.from_user.first_name} {settlement.from_user.last_name} has been rejected.")
         
-        # Create notification for settlement rejection
+        # Create notifications for both users
         try:
-            notification = Notification.create_settlement_notification(settlement, 'settle_rejected')
-            if notification:
+            notifications = Notification.create_settlement_notification(settlement, 'settle_rejected')
+            for notification in notifications:
                 send_notification_update(notification.user)
         except Exception as e:
-            print(f"Error creating settlement rejection notification: {e}")
+            print(f"Error creating settlement rejection notifications: {e}")
     
     return redirect('mainApp:group_detail', group_id=group.id)
+
+@login_required
+def remind_payment(request, group_id):
+    """Show reminder options or send reminder"""
+    group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
+    detailed_balance = group.get_detailed_balance_for_user(request.user)
+    
+    # Get users that owe money to current user
+    users_owed_by = []
+    for balance_item in detailed_balance:
+        if balance_item['type'] == 'owed_to_you':
+            # Check if reminder can be sent (24-hour cooldown)
+            can_remind = PaymentReminder.can_send_reminder(
+                request.user, balance_item['user'], group
+            )
+            next_reminder_time = PaymentReminder.get_next_reminder_time(
+                request.user, balance_item['user'], group
+            )
+            
+            users_owed_by.append({
+                'user': balance_item['user'],
+                'amount': balance_item['amount'],
+                'can_remind': can_remind,
+                'next_reminder_time': next_reminder_time
+            })
+    
+    if not users_owed_by:
+        messages.info(request, "No one owes you money in this group.")
+        return redirect('mainApp:group_detail', group_id=group.id)
+    
+    # If only one user, redirect to reminder type selection
+    if len(users_owed_by) == 1:
+        return redirect('mainApp:remind_payment_type', 
+                       group_id=group.id, 
+                       user_id=users_owed_by[0]['user'].id)
+    
+    context = {
+        'group': group,
+        'users_owed_by': users_owed_by,
+    }
+    return render(request, 'mainApp/remind_payment_select_user.html', context)
+
+@login_required
+def remind_payment_type(request, group_id, user_id):
+    """Select reminder type (email or notification)"""
+    group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
+    to_user = get_object_or_404(User, id=user_id, expense_groups=group)
+    
+    # Verify that the user owes money to current user
+    detailed_balance = group.get_detailed_balance_for_user(request.user)
+    user_owes_amount = None
+    
+    for balance_item in detailed_balance:
+        if (balance_item['type'] == 'owed_to_you' and 
+            balance_item['user'] == to_user):
+            user_owes_amount = balance_item['amount']
+            break
+    
+    if user_owes_amount is None:
+        messages.error(request, "This user doesn't owe you money.")
+        return redirect('mainApp:group_detail', group_id=group.id)
+    
+    # Check cooldown
+    can_remind = PaymentReminder.can_send_reminder(request.user, to_user, group)
+    if not can_remind:
+        next_reminder_time = PaymentReminder.get_next_reminder_time(request.user, to_user, group)
+        messages.warning(request, f"You can send next reminder after {next_reminder_time.strftime('%B %d, %Y at %I:%M %p')}.")
+        return redirect('mainApp:group_detail', group_id=group.id)
+    
+    if request.method == 'POST':
+        reminder_type = request.POST.get('reminder_type')
+        
+        if reminder_type in ['email', 'notification']:
+            # Create reminder record
+            reminder = PaymentReminder.objects.create(
+                group=group,
+                from_user=request.user,
+                to_user=to_user,
+                amount=user_owes_amount,
+                reminder_type=reminder_type
+            )
+            
+            # Send reminder
+            if reminder_type == 'email':
+                success = send_payment_reminder_email(reminder)
+                if success:
+                    messages.success(request, f"Payment reminder email sent to {to_user.get_full_name() or to_user.username}.")
+                else:
+                    messages.error(request, "Failed to send email reminder.")
+            else:  # notification
+                send_payment_reminder_notification(reminder)
+                messages.success(request, f"Payment reminder notification sent to {to_user.get_full_name() or to_user.username}.")
+            
+            return redirect('mainApp:group_detail', group_id=group.id)
+        else:
+            messages.error(request, "Invalid reminder type selected.")
+    
+    context = {
+        'group': group,
+        'to_user': to_user,
+        'amount': user_owes_amount,
+    }
+    return render(request, 'mainApp/remind_payment_type.html', context)
+
+def send_payment_reminder_email(reminder):
+    """Send payment reminder via email"""
+    from django.core.mail import send_mail
+    from django.conf import settings
+    
+    subject = f"Payment Reminder - {reminder.group.name}"
+    
+    from_user_name = reminder.from_user.get_full_name() or reminder.from_user.username
+    to_user_name = reminder.to_user.get_full_name() or reminder.to_user.username
+    
+    message = f"""
+Hello {to_user_name},
+
+This is a gentle reminder that you owe PKR {reminder.amount} to {from_user_name} in the group "{reminder.group.name}".
+
+Please settle this amount when convenient.
+
+Best regards,
+HisaabKaro Team
+    """
+    
+    try:
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [reminder.to_user.email],
+            fail_silently=False,
+        )
+        return True
+    except Exception as e:
+        print(f"Error sending reminder email: {e}")
+        return False
+
+def send_payment_reminder_notification(reminder):
+    """Send payment reminder via in-app notification"""
+    from_user_name = reminder.from_user.get_full_name() or reminder.from_user.username
+    
+    # Create notification for the user who owes money
+    notification = Notification.objects.create(
+        user=reminder.to_user,
+        notification_type='payment_reminder',
+        title=f"Payment reminder from {from_user_name}",
+        message=f"You owe PKR {reminder.amount} to {from_user_name} in group {reminder.group.name}. This is a gentle reminder.",
+        group=reminder.group,
+        extra_data={
+            'amount': str(reminder.amount),
+            'from_user_id': reminder.from_user.id,
+            'reminder_id': reminder.id
+        }
+    )
+    
+    # Send real-time notification
+    try:
+        send_notification_update(reminder.to_user)
+    except Exception as e:
+        print(f"Error sending real-time notification: {e}")
+    
+    return notification
 
 @login_required
 def home_chart_data(request):
@@ -2272,3 +2619,58 @@ def send_notification_update(user):
         )
     except Exception as e:
         print(f"Error sending notification update: {e}")
+
+
+@login_required
+def regenerate_invite_link(request, group_id):
+    """Regenerate invite link for a group"""
+    if request.method == 'POST':
+        try:
+            group = get_object_or_404(Group, id=group_id, is_active=True)
+            
+            # Check if user is the group admin
+            if request.user != group.created_by:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Only group administrators can regenerate invite links.'
+                }, status=403)
+            
+            # Generate new invite token using UUID and timestamp for uniqueness
+            import uuid
+            from datetime import datetime
+            
+            # Create a new UUID
+            new_token = uuid.uuid4()
+            
+            # Update the group's invite token
+            old_token = group.invite_token
+            group.invite_token = new_token
+            group.save()
+            
+            # Create history entry
+            GroupHistory.objects.create(
+                group=group,
+                action='invite_link_regenerated',
+                performed_by=request.user,
+                description=f"Invite link was regenerated by {request.user.get_full_name() or request.user.username}"
+            )
+            
+            # Generate the new invite link
+            new_invite_link = f"{request.scheme}://{request.get_host()}/groups/join/{new_token}/"
+            
+            return JsonResponse({
+                'success': True,
+                'new_invite_link': new_invite_link,
+                'message': 'Invite link has been successfully regenerated. The old link is no longer valid.'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False, 
+                'error': f'An error occurred while regenerating the invite link: {str(e)}'
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False, 
+        'error': 'Invalid request method. Only POST requests are allowed.'
+    }, status=405)
