@@ -66,6 +66,11 @@ urlpatterns = [
     path('groups/<int:group_id>/remind-payment/', views.remind_payment, name='remind_payment'),
     path('groups/<int:group_id>/remind-payment/<int:user_id>/', views.remind_payment_type, name='remind_payment_type'),
     
+    # Group Management URLs
+    path('groups/<int:group_id>/leave/', views.leave_group, name='leave_group'),
+    path('groups/<int:group_id>/delete/', views.delete_group, name='delete_group'),
+    path('groups/<int:group_id>/vote-deletion/', views.vote_group_deletion, name='vote_group_deletion'),
+    
     # Chart Data URLs
     path('charts/home-data/', views.home_chart_data, name='home_chart_data'),
     path('charts/personal-data/', views.personal_chart_data, name='personal_chart_data'),

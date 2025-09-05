@@ -45,8 +45,33 @@
 
 <div class="container mt-4">
     <div class="header">
-        <h1>{{ group.name }}</h1>
-        <p>{{ group.description|default:"No description" }}</p>
+        <div class="mb-3">
+            <h1>{{ group.name }}</h1>
+            <p>{{ group.description|default:"No description" }}</p>
+        </div>
+        
+        <!-- Group Actions Dropdown -->
+        <div class="mb-3">
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="groupManagementDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-cog"></i> Group Actions
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="groupManagementDropdown">
+                    {% if group.created_by == user %}
+                        <li>
+                            <a class="dropdown-item text-danger" href="#" onclick="deleteGroup()">
+                                <i class="fas fa-trash"></i> Request Group Deletion
+                            </a>
+                        </li>
+                    {% endif %}
+                    <li>
+                        <a class="dropdown-item text-warning" href="#" onclick="leaveGroup()">
+                            <i class="fas fa-sign-out-alt"></i> Leave Group
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
         
         <!-- Balance Information -->
         <div class="balance-info mt-3">
@@ -146,6 +171,58 @@
                 </div>
             {% endif %}
         </div>
+        
+        <!-- Group Deletion Request Section -->
+        {% if pending_deletion_request %}
+        <div class="card mt-3">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Group Deletion Request
+                </h5>
+            </div>
+            <div class="card-body">
+                <p><strong>{{ pending_deletion_request.initiated_by.get_full_name|default:pending_deletion_request.initiated_by.username }}</strong> 
+                   has requested to delete this group and all its data permanently.</p>
+                
+                <div class="mb-3">
+                    <h6>Member Votes:</h6>
+                    {% for vote in deletion_votes %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <span>{{ vote.user.get_full_name|default:vote.user.username }}</span>
+                        <span class="badge 
+                            {% if vote.vote == 'agree' %}bg-success
+                            {% elif vote.vote == 'disagree' %}bg-danger
+                            {% else %}bg-secondary{% endif %}">
+                            {% if vote.vote == 'agree' %}Agreed
+                            {% elif vote.vote == 'disagree' %}Disagreed
+                            {% else %}Pending{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                {% if user_deletion_vote.vote == 'pending' %}
+                <div class="alert alert-warning">
+                    <strong>Your vote is required!</strong> Do you agree to delete this group and all its data permanently?
+                </div>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                    <button class="btn btn-success" onclick="voteGroupDeletion('agree')">
+                        <i class="fas fa-check"></i> Yes, Delete Group
+                    </button>
+                    <button class="btn btn-danger" onclick="voteGroupDeletion('disagree')">
+                        <i class="fas fa-times"></i> No, Keep Group
+                    </button>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    You have voted: <strong>
+                    {% if user_deletion_vote.vote == 'agree' %}Agree to delete
+                    {% else %}Keep the group{% endif %}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Group Members -->
@@ -506,6 +583,91 @@
             // Fallback polling every 60 seconds (reduced from 30 since we have WebSocket)
             setInterval(updateUnreadCount, 60000);
         });
+
+        // Group management functions
+        function leaveGroup() {
+            if (confirm('Are you sure you want to leave this group? This action cannot be undone.')) {
+                fetch(`/groups/{{ group.id }}/leave/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('You have successfully left the group.');
+                        window.location.href = '/groups/';
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while leaving the group.');
+                });
+            }
+        }
+
+        function deleteGroup() {
+            if (confirm('Are you sure you want to request group deletion? All members must agree before the group is deleted.')) {
+                fetch(`/groups/{{ group.id }}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Group deletion request sent to all members.');
+                        location.reload(); // Reload to show voting UI
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while requesting group deletion.');
+                });
+            }
+        }
+
+        function voteGroupDeletion(vote) {
+            const confirmMessage = vote === 'agree' 
+                ? 'Are you sure you want to agree to delete this group? This action cannot be undone.'
+                : 'Are you sure you want to disagree with deleting this group?';
+                
+            if (confirm(confirmMessage)) {
+                const formData = new FormData();
+                formData.append('vote', vote);
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                fetch(`/groups/{{ group.id }}/vote-deletion/`, {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        if (data.deleted) {
+                            window.location.href = '/groups/';
+                        } else {
+                            location.reload(); // Reload to update voting status
+                        }
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while voting.');
+                });
+            }
+        }
     </script>
 </div>
 {% endblock %}

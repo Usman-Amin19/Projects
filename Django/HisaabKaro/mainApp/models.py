@@ -128,6 +128,10 @@ class GroupHistory(models.Model):
         ('created', 'Group Created'),
         ('member_added', 'Member Added'),
         ('member_removed', 'Member Removed'),
+        ('member_left', 'Member Left'),
+        ('admin_transferred', 'Admin Transferred'),
+        ('deletion_requested', 'Deletion Requested'),
+        ('group_deleted', 'Group Deleted'),
         ('expense_added', 'Expense Added'),
         ('expense_deleted', 'Expense Deleted'),
         ('invite_link_regenerated', 'Invite Link Regenerated'),
@@ -311,6 +315,49 @@ class PaymentReminder(models.Model):
         return None
 
 
+class GroupDeletionRequest(models.Model):
+    """Track group deletion requests that require all members' approval"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='deletion_requests')
+    initiated_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='initiated_deletions')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('group', 'status')  # Only one pending request per group
+    
+    def __str__(self):
+        return f"Deletion request for {self.group.name} by {self.initiated_by.username} ({self.status})"
+
+
+class GroupDeletionVote(models.Model):
+    """Individual member votes on group deletion"""
+    VOTE_CHOICES = [
+        ('pending', 'Pending'),
+        ('agree', 'Agree'),
+        ('disagree', 'Disagree'),
+    ]
+    
+    deletion_request = models.ForeignKey(GroupDeletionRequest, on_delete=models.CASCADE, related_name='votes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='deletion_votes')
+    vote = models.CharField(max_length=10, choices=VOTE_CHOICES, default='pending')
+    voted_at = models.DateTimeField(default=timezone.now)
+    
+    class Meta:
+        unique_together = ('deletion_request', 'user')
+        ordering = ['voted_at']
+    
+    def __str__(self):
+        return f"{self.user.username} voted {self.vote} on {self.deletion_request.group.name} deletion"
+
+
 class GroupMembership(models.Model):
     """Track when users joined groups for chat access control"""
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -415,6 +462,10 @@ class Notification(models.Model):
         ('group_invite', 'Group Invitation'),
         ('member_joined', 'Member Joined'),
         ('member_left', 'Member Left'),
+        ('admin_transferred', 'Admin Transferred'),
+        ('group_deletion_request', 'Group Deletion Request'),
+        ('group_deletion_rejected', 'Group Deletion Rejected'),
+        ('group_deleted', 'Group Deleted'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -424,8 +475,8 @@ class Notification(models.Model):
     
     # Related objects (optional, depends on notification type)
     group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True)
-    group_expense = models.ForeignKey('GroupExpense', on_delete=models.CASCADE, null=True, blank=True)
-    personal_expense = models.ForeignKey('PersonalExpense', on_delete=models.CASCADE, null=True, blank=True)
+    group_expense = models.ForeignKey('GroupExpense', on_delete=models.SET_NULL, null=True, blank=True)
+    personal_expense = models.ForeignKey('PersonalExpense', on_delete=models.SET_NULL, null=True, blank=True)
     settlement = models.ForeignKey('SettlementRequest', on_delete=models.CASCADE, null=True, blank=True)
     
     # Additional data (JSON field for extra context)

@@ -1,11 +1,11 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.contrib import messages
 from django.http import JsonResponse
 from decimal import Decimal
 from datetime import datetime, date, timedelta
 from django.template.defaultfilters import timesince
-from .models import PersonalExpense, GroupExpense, Group, Category, ExpenseSplit, GroupHistory, UserProfile, ExpenseHistory, SettlementRequest, PaymentReminder, ChatMessage, GroupMembership, ChatMessageRead, Notification
+from .models import PersonalExpense, GroupExpense, Group, Category, ExpenseSplit, GroupHistory, UserProfile, ExpenseHistory, SettlementRequest, PaymentReminder, GroupDeletionRequest, GroupDeletionVote, ChatMessage, GroupMembership, ChatMessageRead, Notification
 import logging
 
 from django.conf import settings
@@ -542,6 +542,28 @@ def group_detail(request, group_id):
     # Get group history
     history = GroupHistory.objects.filter(group=group)[:10]  # Last 10 actions
     
+    # Check for pending group deletion request
+    pending_deletion_request = None
+    deletion_votes = []
+    user_deletion_vote = None
+    
+    try:
+        pending_deletion_request = GroupDeletionRequest.objects.get(
+            group=group,
+            status='pending'
+        )
+        deletion_votes = GroupDeletionVote.objects.filter(
+            deletion_request=pending_deletion_request
+        ).order_by('voted_at')
+        user_deletion_vote = GroupDeletionVote.objects.get(
+            deletion_request=pending_deletion_request,
+            user=request.user
+        )
+    except GroupDeletionRequest.DoesNotExist:
+        pass
+    except GroupDeletionVote.DoesNotExist:
+        pass
+    
     context = {
         'group': group,
         'expenses': expenses,
@@ -554,6 +576,9 @@ def group_detail(request, group_id):
         'pending_settlements': pending_settlements_to_approve,
         'history': history,
         'user': request.user,
+        'pending_deletion_request': pending_deletion_request,
+        'deletion_votes': deletion_votes,
+        'user_deletion_vote': user_deletion_vote,
     }
     return render(request, 'mainApp/group_detail.html', context)
 
@@ -2039,6 +2064,313 @@ def send_payment_reminder_notification(reminder):
         print(f"Error sending real-time notification: {e}")
     
     return notification
+
+@login_required
+def leave_group(request, group_id):
+    """Allow a member to leave a group (with settlement validation and admin transfer)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
+    
+    # Check if user has any pending settlements or debts
+    detailed_balance = group.get_detailed_balance_for_user(request.user)
+    has_pending_balance = len(detailed_balance) > 0
+    
+    # Check for pending settlement requests involving the user
+    pending_settlements = SettlementRequest.objects.filter(
+        group=group,
+        status='pending'
+    ).filter(
+        Q(from_user=request.user) | Q(to_user=request.user)
+    ).exists()
+    
+    if has_pending_balance:
+        return JsonResponse({
+            'success': False,
+            'error': 'You cannot leave the group while you have pending settlements or outstanding debts. Please settle all dues first.'
+        })
+    
+    if pending_settlements:
+        return JsonResponse({
+            'success': False,
+            'error': 'You cannot leave the group while you have pending settlement requests. Please resolve them first.'
+        })
+    
+    try:
+        # Check if user is the group creator and there are other members
+        is_admin = group.created_by == request.user
+        other_members = group.members.exclude(id=request.user.id)
+        
+        if is_admin and other_members.exists():
+            # Transfer admin role to the oldest member (by join date)
+            new_admin = other_members.order_by('groupmembership__joined_at').first()
+            group.created_by = new_admin
+            group.save()
+            
+            # Create history entry for admin transfer
+            GroupHistory.objects.create(
+                group=group,
+                action='admin_transferred',
+                performed_by=request.user,
+                target_user=new_admin,
+                description=f"Admin role transferred from {request.user.get_full_name() or request.user.username} to {new_admin.get_full_name() or new_admin.username}"
+            )
+            
+            # Notify new admin
+            Notification.objects.create(
+                user=new_admin,
+                notification_type='admin_transferred',
+                title=f"You are now admin of {group.name}",
+                message=f"{request.user.get_full_name() or request.user.username} left the group and transferred admin role to you.",
+                group=group
+            )
+            try:
+                send_notification_update(new_admin)
+            except Exception as e:
+                print(f"Error sending admin transfer notification: {e}")
+        
+        # Remove user from group
+        group.members.remove(request.user)
+        
+        # Create group history entry
+        GroupHistory.objects.create(
+            group=group,
+            action='member_left',
+            performed_by=request.user,
+            description=f"{request.user.get_full_name() or request.user.username} left the group"
+        )
+        
+        # Send notifications to remaining members
+        remaining_members = group.members.exclude(id=request.user.id)
+        for member in remaining_members:
+            Notification.objects.create(
+                user=member,
+                notification_type='member_left',
+                title=f"Member left group: {group.name}",
+                message=f"{request.user.get_full_name() or request.user.username} has left the group.",
+                group=group
+            )
+            try:
+                send_notification_update(member)
+            except Exception as e:
+                print(f"Error sending notification to {member.username}: {e}")
+        
+        return JsonResponse({'success': True})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'An error occurred: {str(e)}'})
+
+@login_required
+def delete_group(request, group_id):
+    """Initiate group deletion process - requires all members' agreement"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
+    
+    # Check if user is the group creator
+    if group.created_by != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Only the group creator can initiate group deletion.'
+        })
+    
+    # Check if all members have settled up
+    all_members = group.members.all()
+    has_pending_balances = False
+    pending_members = []
+    
+    for member in all_members:
+        detailed_balance = group.get_detailed_balance_for_user(member)
+        if len(detailed_balance) > 0:
+            has_pending_balances = True
+            pending_members.append(member.get_full_name() or member.username)
+    
+    # Check for any pending settlement requests
+    pending_settlements = SettlementRequest.objects.filter(
+        group=group,
+        status='pending'
+    ).exists()
+    
+    if has_pending_balances:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete group. The following members have pending settlements: {", ".join(pending_members)}. All debts must be settled before deletion.'
+        })
+    
+    if pending_settlements:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot delete group. There are pending settlement requests that need to be resolved first.'
+        })
+    
+    try:
+        # Check if there's already a pending deletion request
+        existing_request, created = GroupDeletionRequest.objects.get_or_create(
+            group=group,
+            defaults={
+                'initiated_by': request.user,
+                'status': 'pending'
+            }
+        )
+        
+        if not created:
+            return JsonResponse({
+                'success': False,
+                'error': 'A group deletion request is already pending. All members must vote before a new request can be made.'
+            })
+        
+        # Create deletion votes for all members (initiator automatically agrees)
+        for member in all_members:
+            GroupDeletionVote.objects.create(
+                deletion_request=existing_request,
+                user=member,
+                vote='agree' if member == request.user else 'pending'
+            )
+        
+        # Send notifications to all other members
+        other_members = all_members.exclude(id=request.user.id)
+        for member in other_members:
+            Notification.objects.create(
+                user=member,
+                notification_type='group_deletion_request',
+                title=f"Group deletion request: {group.name}",
+                message=f"{request.user.get_full_name() or request.user.username} wants to delete the group '{group.name}'. Your approval is required.",
+                group=group,
+                extra_data={'deletion_request_id': existing_request.id}
+            )
+            try:
+                send_notification_update(member)
+            except Exception as e:
+                print(f"Error sending notification to {member.username}: {e}")
+        
+        # Create group history entry
+        GroupHistory.objects.create(
+            group=group,
+            action='deletion_requested',
+            performed_by=request.user,
+            description=f"Group deletion requested by {request.user.get_full_name() or request.user.username}"
+        )
+        
+        return JsonResponse({
+            'success': True, 
+            'message': 'Group deletion request sent to all members. The group will be deleted once everyone agrees.'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'An error occurred: {str(e)}'})
+
+@login_required
+def vote_group_deletion(request, group_id):
+    """Allow members to vote on group deletion"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    group = get_object_or_404(Group, id=group_id, is_active=True, members=request.user)
+    vote = request.POST.get('vote')  # 'agree' or 'disagree'
+    
+    if vote not in ['agree', 'disagree']:
+        return JsonResponse({'success': False, 'error': 'Invalid vote'})
+    
+    try:
+        # Get the pending deletion request
+        deletion_request = GroupDeletionRequest.objects.get(
+            group=group,
+            status='pending'
+        )
+        
+        # Update user's vote
+        deletion_vote, created = GroupDeletionVote.objects.get_or_create(
+            deletion_request=deletion_request,
+            user=request.user,
+            defaults={'vote': vote}
+        )
+        
+        if not created:
+            deletion_vote.vote = vote
+            deletion_vote.save()
+        
+        # Check if all members have voted
+        total_members = group.members.count()
+        votes = GroupDeletionVote.objects.filter(deletion_request=deletion_request)
+        voted_members = votes.exclude(vote='pending').count()
+        agreed_members = votes.filter(vote='agree').count()
+        
+        if voted_members == total_members:
+            # All members have voted
+            if agreed_members == total_members:
+                # Everyone agreed - delete the group
+                deletion_request.status = 'approved'
+                deletion_request.save()
+                
+                # Mark group as inactive
+                group.is_active = False
+                group.save()
+                
+                # Create final group history entry
+                GroupHistory.objects.create(
+                    group=group,
+                    action='group_deleted',
+                    performed_by=request.user,
+                    description=f"Group deleted after unanimous agreement"
+                )
+                
+                # Send final notifications
+                for member in group.members.all():
+                    Notification.objects.create(
+                        user=member,
+                        notification_type='group_deleted',
+                        title=f"Group deleted: {group.name}",
+                        message=f"The group '{group.name}' has been deleted after unanimous agreement.",
+                        extra_data={'deleted_group_name': group.name}
+                    )
+                    try:
+                        send_notification_update(member)
+                    except Exception as e:
+                        print(f"Error sending notification to {member.username}: {e}")
+                
+                return JsonResponse({
+                    'success': True, 
+                    'deleted': True,
+                    'message': 'Group has been deleted after unanimous agreement.'
+                })
+            else:
+                # Not everyone agreed - cancel deletion
+                deletion_request.status = 'rejected'
+                deletion_request.save()
+                
+                # Notify all members about rejection
+                for member in group.members.all():
+                    Notification.objects.create(
+                        user=member,
+                        notification_type='group_deletion_rejected',
+                        title=f"Group deletion cancelled: {group.name}",
+                        message=f"Group deletion was cancelled as not all members agreed.",
+                        group=group
+                    )
+                    try:
+                        send_notification_update(member)
+                    except Exception as e:
+                        print(f"Error sending notification to {member.username}: {e}")
+                
+                return JsonResponse({
+                    'success': True, 
+                    'deleted': False,
+                    'message': 'Group deletion cancelled as not all members agreed.'
+                })
+        else:
+            # Still waiting for more votes
+            return JsonResponse({
+                'success': True, 
+                'deleted': False,
+                'message': f'Vote recorded. Waiting for {total_members - voted_members} more member(s) to vote.'
+            })
+        
+    except GroupDeletionRequest.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'No pending deletion request found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'An error occurred: {str(e)}'})
 
 @login_required
 def home_chart_data(request):
